@@ -1267,24 +1267,6 @@ export function onKeyDown(this: any, e: KeyboardEvent): void {
     // 파생 상태를 해제하면(#2339) undo 쪽은 커맨드가 실어 둔 셀 블록으로 다시 세워진다.
     if (dispatchCellBlockGlobalShortcut.call(this, e)) return;
 
-    /**
-     * 칸을 고른 상태의 한 글자 단축키 — 한컴과 같다 (C: 셀 테두리/배경).
-     *
-     * 자판이 아니라 **누른 자리**(e.code)로 본다. 한글 입력 상태에서는 IME 가 먼저
-     * 집어 e.key 가 'Process' 로 오고 조합이 시작되므로, key 로 보면 그냥 「ㅊ」이
-     * 칸에 박힌다 (사용자 신고). 조합 여부도 따지지 않는다 — 칸 블록이 잡혀 있을
-     * 때 글자를 치는 것은 편집이 아니라 단축키 자리이기 때문이다.
-     * 여러 칸을 골랐으면 한 덩어리로(border-one), 한 칸이면 칸마다(border-each)
-     * 여는 것이 한컴의 동작이다.
-     */
-    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyC') {
-      e.preventDefault();
-      this.dispatcher?.dispatch(
-        this.hasMultiCellSelection?.() ? 'table:border-one' : 'table:border-each',
-      );
-      return;
-    }
-
     // [Task #6741] 선택한 칸들의 내용을 한 번에 지우고 블록을 유지한다 — 한컴과 같다.
     // 종전에는 아래 "그 외 키"로 떨어져 블록이 풀리고 캐럿에서 한 글자만 지워졌다.
     if (e.key === 'Delete' && !e.ctrlKey && !e.metaKey && !e.altKey) {
