@@ -97,6 +97,20 @@ export const formatCommands: CommandDef[] = [
       services.getInputHandler()?.setLineSpacing(value);
     },
   },
+  // 커서 위치로 내어쓰기 (Alt+Shift+I)
+  //
+  // 한컴은 Ctrl+Shift+Tab 에 두지만 브라우저가 탭 전환으로 가져가고, 표 안에서는
+  // Shift+Tab 이 이전 칸 이동이라 쓸 수 없다. 그래서 정렬 단축키들과 같은 자리
+  // (Alt+Shift+*)로 재매핑한다 — 본문·표 칸 어디서나 같은 키로 부른다.
+  {
+    id: 'format:hanging-indent',
+    label: t('command.format.hangingIndent.registryLabel'),
+    shortcutLabel: 'Alt+Shift+I',
+    canExecute: (ctx) => ctx.hasDocument && ctx.isEditable,
+    execute(services) {
+      services.getInputHandler()?.applyHangingIndentAtCursor();
+    },
+  },
   // 줄 간격 줄이기 (Alt+Shift+A)
   {
     id: 'format:line-spacing-decrease',

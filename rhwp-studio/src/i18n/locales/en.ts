@@ -106,6 +106,8 @@ const catalog = {
   "command.format.levelIncrease.toolbarLabel": "Level ▲",
   "command.format.levelIncrease.tooltip": "Promote One Level",
   "command.format.lineSpacing.registryLabel": "Line spacing",
+  "command.format.hangingIndent.label": "Hanging indent at cursor",
+  "command.format.hangingIndent.registryLabel": "Hanging Indent at Cursor",
   "command.format.lineSpacingDecrease.label": "Decrease line spacing",
   "command.format.lineSpacingDecrease.registryLabel": "Decrease Line Spacing",
   "command.format.lineSpacingIncrease.label": "Increase line spacing",

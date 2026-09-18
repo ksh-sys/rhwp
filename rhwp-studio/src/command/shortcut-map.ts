@@ -127,6 +127,9 @@ export const defaultShortcuts: [ShortcutDef, string][] = [
   [{ key: 'ㅊ', alt: true, shift: true }, 'format:align-center'],
   [{ key: 'd', alt: true, shift: true }, 'format:align-distribute'], // 배분 정렬 (재매핑)
   [{ key: 'ㅇ', alt: true, shift: true }, 'format:align-distribute'],
+  // 커서 위치로 내어쓰기 (한컴 Ctrl+Shift+Tab 은 브라우저 탭 전환과 겹쳐 재매핑, I=Indent)
+  [{ key: 'i', alt: true, shift: true }, 'format:hanging-indent'],
+  [{ key: 'ㅑ', alt: true, shift: true }, 'format:hanging-indent'],
 
   // 표
   [{ key: 'enter', alt: true }, 'table:insert-row-col'],

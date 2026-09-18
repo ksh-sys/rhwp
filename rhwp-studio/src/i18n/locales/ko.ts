@@ -106,6 +106,8 @@ const catalog = {
   "command.format.levelIncrease.toolbarLabel": "수준▲",
   "command.format.levelIncrease.tooltip": "한 수준 증가",
   "command.format.lineSpacing.registryLabel": "줄 간격",
+  "command.format.hangingIndent.label": "커서 위치로 내어쓰기",
+  "command.format.hangingIndent.registryLabel": "커서 위치로 내어쓰기",
   "command.format.lineSpacingDecrease.label": "줄 간격 줄임",
   "command.format.lineSpacingDecrease.registryLabel": "줄 간격 줄이기",
   "command.format.lineSpacingIncrease.label": "줄 간격 늘림",

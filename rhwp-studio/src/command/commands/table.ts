@@ -225,7 +225,7 @@ function restoreEditorFocus(ih: TableCellCommandContext['ih']): void {
   textarea?.focus();
 }
 
-function applyTableInsertRowColumn(
+export function applyTableInsertRowColumn(
   services: CommandServices,
   mode: TableInsertRowColumnMode,
   count: number,

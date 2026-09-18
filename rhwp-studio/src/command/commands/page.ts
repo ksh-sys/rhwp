@@ -1,4 +1,5 @@
 import type { CommandDef } from '../types';
+import { applyTableInsertRowColumn } from './table';
 import type { DocumentPosition } from '@/core/types';
 import { PageSetupDialog } from '@/ui/page-setup-dialog';
 import { PageBorderDialog } from '@/ui/page-border-dialog';
@@ -451,6 +452,12 @@ export const pageCommands: CommandDef[] = [
     execute(services) {
       const ih = services.getInputHandler();
       if (!ih) return;
+      /* 한컴은 표 칸 안에서 Ctrl+Enter 를 「아래에 줄 추가」로 쓴다 — 대화상자 없이 바로
+         한 줄이 붙는다. 표 밖에서만 쪽 나눔이다. 같은 키를 문맥으로 가른다. */
+      if (ih.isInTable()) {
+        applyTableInsertRowColumn(services, 'row-below', 1);
+        return;
+      }
       const pos = ih.getPosition();
       try {
         ih.executeOperation({
