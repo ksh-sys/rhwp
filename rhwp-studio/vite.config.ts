@@ -22,6 +22,9 @@ const useSubsecondWasm = process.env.RHWP_SUBSECOND === '1';
 const withHwpctrl = process.env.RHWP_WITHOUT_HWPCTRL !== '1';
 
 export default defineConfig({
+  // 협회 배포는 /hwp-studio/ 아래에 둔다 — 자산 경로가 절대 '/'면 그 폴더에서 404 가 난다.
+  // 환경변수로 받아 업스트림 기본값(루트 배포)은 그대로 둔다.
+  base: process.env.RHWP_BASE || '/',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     // 셀프 호스팅 빌드에서 외부(CDN) 웹폰트 로드를 빌드 시점에 끈다.

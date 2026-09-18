@@ -1368,45 +1368,93 @@ impl Table {
             }
         }
 
-        // 새 셀 생성: 병합 셀에 의해 커버되지 않는 열에만
-        // 삽입 지점 아래 행의 셀을 템플릿으로 우선 사용 (헤더 행 대신 데이터 행)
-        // target_row 아래(+1)의 셀이 원래 데이터 행이므로 먼저 시도, 없으면 위(-1), 그래도 없으면 아무 셀
-        for c in 0..self.col_count {
-            if !covered_cols[c as usize] {
-                let width = col_widths[c as usize];
-                let template = self
-                    .cells
-                    .iter()
-                    .find(|cell| {
-                        cell.col == c
-                            && cell.col_span == 1
-                            && cell.row == target_row.saturating_add(1)
-                    })
-                    .or_else(|| {
-                        if target_row > 0 {
-                            self.cells.iter().find(|cell| {
-                                cell.col == c && cell.col_span == 1 && cell.row == target_row - 1
-                            })
-                        } else {
-                            None
+        // 새 행이 따라갈 칸 나눔 — 이웃 행의 가로 병합을 그대로 물려받는다.
+        //
+        // 열마다 낱개 셀을 하나씩 만들면 이웃 행이 가로로 병합된 표에서 새 행만
+        // 잘게 쪼개져 붙는다. 보고서 서식처럼 머리 행과 본문 행이 같은 칸 나눔을
+        // 쓰는 표에서 줄을 더하면 그 행만 칸 수가 달라 보였다.
+        // 세로 병합이 덮는 열(covered_cols)은 새 셀을 만들지 않으므로, 물려받은
+        // 조각이 그 열에 걸치면 거기서 끊는다.
+        let template_row = [
+            Some(target_row.saturating_add(1)),
+            target_row.checked_sub(1),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|row| self.cells.iter().any(|cell| cell.row == *row));
+
+        let mut segments: Vec<(u16, u16)> = Vec::new();
+        if let Some(row) = template_row {
+            let mut spans: Vec<(u16, u16)> = self
+                .cells
+                .iter()
+                .filter(|cell| cell.row == row)
+                .map(|cell| (cell.col, cell.col_span.max(1)))
+                .collect();
+            spans.sort_unstable();
+            for (col, span) in spans {
+                let end = col.saturating_add(span).min(self.col_count);
+                let mut start: Option<u16> = None;
+                for c in col..end {
+                    if covered_cols[c as usize] {
+                        if let Some(s) = start.take() {
+                            segments.push((s, c - s));
                         }
-                    })
-                    .or_else(|| {
-                        self.cells
-                            .iter()
-                            .find(|cell| cell.col == c && cell.col_span == 1)
-                    })
-                    // 열 c 가 전부 병합 셀이면 위 탐색이 모두 실패한다. 서식 0 짜리 셀을
-                    // 만드느니 표의 아무 셀이나 템플릿으로 쓴다 (주석의 "아무 셀").
-                    .or_else(|| self.cells.first());
-                let new_cell = if let Some(tpl) = template {
-                    Cell::new_from_template(c, target_row, width, new_cell_height, tpl)
-                } else {
-                    // 셀이 하나도 없는 표 — 상속원이 존재하지 않는 유일한 경우
-                    Cell::new_empty(c, target_row, width, new_cell_height, self.border_fill_id)
-                };
-                self.cells.push(new_cell);
+                    } else if start.is_none() {
+                        start = Some(c);
+                    }
+                }
+                if let Some(s) = start {
+                    segments.push((s, end - s));
+                }
             }
+        }
+        if segments.is_empty() {
+            // 이웃 행이 없는 표(또는 물려받을 조각이 모두 병합에 덮인 경우) — 낱개로.
+            segments = (0..self.col_count)
+                .filter(|c| !covered_cols[*c as usize])
+                .map(|c| (c, 1))
+                .collect();
+        }
+
+        for (col, span) in segments {
+            let end = col.saturating_add(span).min(self.col_count);
+            let width: HwpUnit = (col..end)
+                .map(|c| col_widths[c as usize])
+                .fold(0 as HwpUnit, |acc, w| acc.saturating_add(w));
+            // 템플릿은 같은 칸 나눔을 쓰는 셀을 먼저 찾는다 — 그 셀의 서식이 새 칸에 맞다
+            let template = self
+                .cells
+                .iter()
+                .find(|cell| {
+                    cell.col == col
+                        && cell.col_span.max(1) == span
+                        && cell.row == target_row.saturating_add(1)
+                })
+                .or_else(|| {
+                    target_row.checked_sub(1).and_then(|above| {
+                        self.cells.iter().find(|cell| {
+                            cell.col == col && cell.col_span.max(1) == span && cell.row == above
+                        })
+                    })
+                })
+                .or_else(|| {
+                    self.cells
+                        .iter()
+                        .find(|cell| cell.col == col && cell.col_span.max(1) == span)
+                })
+                .or_else(|| self.cells.iter().find(|cell| cell.col == col))
+                // 열이 전부 병합 셀이면 위 탐색이 모두 실패한다. 서식 0 짜리 셀을
+                // 만드느니 표의 아무 셀이나 템플릿으로 쓴다.
+                .or_else(|| self.cells.first());
+            let mut new_cell = if let Some(tpl) = template {
+                Cell::new_from_template(col, target_row, width, new_cell_height, tpl)
+            } else {
+                // 셀이 하나도 없는 표 — 상속원이 존재하지 않는 유일한 경우
+                Cell::new_empty(col, target_row, width, new_cell_height, self.border_fill_id)
+            };
+            new_cell.col_span = span;
+            self.cells.push(new_cell);
         }
 
         // row_count 갱신 및 row_sizes 재계산 (행별 셀 개수)

@@ -1395,15 +1395,62 @@ fn insert_row_inherits_shape_when_column_has_only_merged_cells() {
     let mut table = col_merged_table(2);
     table.insert_row(1, false).unwrap();
 
-    let new_cells: Vec<&Cell> = table
-        .cells
-        .iter()
-        .filter(|c| c.row == 1 && c.col_span == 1)
-        .collect();
-    assert_eq!(new_cells.len(), 2, "새 행에 셀 2개");
+    let new_cells: Vec<&Cell> = table.cells.iter().filter(|c| c.row == 1).collect();
+    // 이웃 행이 두 칸을 묶어 쓰므로 새 행도 같은 칸 나눔을 물려받는다.
+    assert_eq!(new_cells.len(), 1, "새 행은 이웃 행과 같은 칸 나눔");
+    assert_eq!(new_cells[0].col_span, 2, "가로 병합을 물려받는다");
     for cell in new_cells {
         assert_inherited(cell, "insert_row");
     }
+}
+
+/// 머리 행은 낱개 칸, 본문 행은 앞 두 칸이 묶인 표 — 보고서 서식의 모양이다.
+fn mixed_span_table() -> Table {
+    let mut cells = vec![
+        shape_cell(Cell::new_empty(0, 0, 2400, 1000, 1)),
+        shape_cell(Cell::new_empty(1, 0, 2400, 1000, 1)),
+        shape_cell(Cell::new_empty(2, 0, 2400, 1000, 1)),
+    ];
+    let mut merged = shape_cell(Cell::new_empty(0, 1, 4800, 1000, 1));
+    merged.col_span = 2;
+    cells.push(merged);
+    cells.push(shape_cell(Cell::new_empty(2, 1, 2400, 1000, 1)));
+    Table {
+        row_count: 2,
+        col_count: 3,
+        row_sizes: vec![3, 2],
+        border_fill_id: 1,
+        cells,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn insert_row_follows_neighbor_column_spans() {
+    let mut table = mixed_span_table();
+    // 본문 행(1) 아래에 줄을 더한다 — 본문과 같은 칸 나눔이어야 한다
+    table.insert_row(1, true).unwrap();
+
+    let mut new_cells: Vec<&Cell> = table.cells.iter().filter(|c| c.row == 2).collect();
+    new_cells.sort_by_key(|c| c.col);
+    assert_eq!(new_cells.len(), 2, "낱개 3칸이 아니라 본문과 같은 2칸");
+    assert_eq!((new_cells[0].col, new_cells[0].col_span), (0, 2));
+    assert_eq!((new_cells[1].col, new_cells[1].col_span), (2, 1));
+    assert_eq!(
+        new_cells[0].width, 4800,
+        "묶인 칸의 너비는 물려받은 열 너비의 합"
+    );
+}
+
+#[test]
+fn insert_row_above_header_follows_header_column_spans() {
+    let mut table = mixed_span_table();
+    // 머리 행(0) 위에 줄을 더하면 이웃인 머리 행의 낱개 칸을 따른다
+    table.insert_row(0, false).unwrap();
+
+    let new_cells: Vec<&Cell> = table.cells.iter().filter(|c| c.row == 0).collect();
+    assert_eq!(new_cells.len(), 3, "머리 행과 같은 낱개 3칸");
+    assert!(new_cells.iter().all(|c| c.col_span == 1));
 }
 
 #[test]
