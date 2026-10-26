@@ -4309,23 +4309,6 @@ fn reflow_line_segs_impl(
             .as_ref()
             .map(|ls| ls.tag)
             .unwrap_or(LineSeg::TAG_SINGLE_SEGMENT_LINE | LineSeg::TAG_IMPLEMENTATION_PROPERTY);
-        // 들여쓰기 표시는 **지금 문단 서식**을 따른다.
-        //
-        // 조판을 다시 하는 자리이므로 저장 태그를 그대로 물려받으면, 서식을 고쳐
-        // 첫 줄 들여쓰기·내어쓰기를 켠 문단도 태그가 꺼진 채 남는다. 렌더는 그 태그를
-        // 보고 들여쓰기를 얹지 않으므로(#6262 의 「TAG_INDENTATION 이 꺼진 줄」 규칙),
-        // 문단 모양에는 값이 들어갔는데 화면은 꿈쩍하지 않았다.
-        // 저장 문서를 읽을 때는 orig_tag 가 그대로 오고 서식도 그대로라 결과가 같다.
-        let base_tag = if orig_tag != 0 {
-            orig_tag
-        } else {
-            LineSeg::TAG_SINGLE_SEGMENT_LINE
-        };
-        let indent_tag = if para_style.is_some_and(|s| s.indent != 0.0) {
-            base_tag | LineSeg::TAG_INDENTATION
-        } else {
-            base_tag & !LineSeg::TAG_INDENTATION
-        };
         LineSeg {
             text_start: utf16_start,
             line_height: line_height_hwp,
@@ -4334,7 +4317,11 @@ fn reflow_line_segs_impl(
             line_spacing: line_spacing_hwp,
             column_start: published_horizontal.start,
             segment_width: seg_width_hwp,
-            tag: indent_tag,
+            tag: if orig_tag != 0 {
+                orig_tag
+            } else {
+                LineSeg::TAG_SINGLE_SEGMENT_LINE
+            },
             ..Default::default()
         }
     };
