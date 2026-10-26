@@ -1442,6 +1442,42 @@ fn insert_row_follows_neighbor_column_spans() {
     );
 }
 
+/// 머리 행과 본문 행의 칸 경계가 조금 다른 보고서 표 — 행마다 경계를 따로 저장한다.
+/// 열 격자 폭은 열마다 가장 넓은 셀이라 본문 행의 경계와 맞지 않는다.
+fn uneven_boundary_table() -> Table {
+    let cells = vec![
+        // 머리 행: 2000 | 5000 | 1000
+        shape_cell(Cell::new_empty(0, 0, 2000, 1000, 1)),
+        shape_cell(Cell::new_empty(1, 0, 5000, 1000, 1)),
+        shape_cell(Cell::new_empty(2, 0, 1000, 1000, 1)),
+        // 본문 행: 1800 | 4800 | 1400 — 같은 3칸이지만 경계가 다르다
+        shape_cell(Cell::new_empty(0, 1, 1800, 1000, 1)),
+        shape_cell(Cell::new_empty(1, 1, 4800, 1000, 1)),
+        shape_cell(Cell::new_empty(2, 1, 1400, 1000, 1)),
+    ];
+    Table {
+        row_count: 2,
+        col_count: 3,
+        row_sizes: vec![3, 3],
+        border_fill_id: 1,
+        cells,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn insert_row_copies_neighbor_cell_widths() {
+    let mut table = uneven_boundary_table();
+    // 본문 행 아래에 줄을 더하면 본문 행의 경계(1800|4800|1400)를 그대로 쓴다.
+    // 열 격자 폭(2000|5000|1400)으로 다시 계산하면 새 행만 경계가 어긋난다.
+    table.insert_row(1, true).unwrap();
+
+    let mut new_cells: Vec<&Cell> = table.cells.iter().filter(|c| c.row == 2).collect();
+    new_cells.sort_by_key(|c| c.col);
+    let widths: Vec<_> = new_cells.iter().map(|c| c.width).collect();
+    assert_eq!(widths, vec![1800, 4800, 1400], "본문 행과 같은 경계");
+}
+
 #[test]
 fn insert_row_above_header_follows_header_column_spans() {
     let mut table = mixed_span_table();

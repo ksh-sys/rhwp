@@ -1419,11 +1419,8 @@ impl Table {
 
         for (col, span) in segments {
             let end = col.saturating_add(span).min(self.col_count);
-            let width: HwpUnit = (col..end)
-                .map(|c| col_widths[c as usize])
-                .fold(0 as HwpUnit, |acc, w| acc.saturating_add(w));
-            // 템플릿은 같은 칸 나눔을 쓰는 셀을 먼저 찾는다 — 그 셀의 서식이 새 칸에 맞다
-            let template = self
+            // 이웃 행에 같은 칸 나눔의 셀이 있으면 그 셀이 서식과 너비의 근거다.
+            let neighbor = self
                 .cells
                 .iter()
                 .find(|cell| {
@@ -1437,7 +1434,19 @@ impl Table {
                             cell.col == col && cell.col_span.max(1) == span && cell.row == above
                         })
                     })
-                })
+                });
+            // 너비는 이웃 셀의 실제 너비를 그대로 쓴다.
+            //
+            // 행마다 칸 경계를 따로 저장한 표(머리 행과 본문 행의 경계가 조금 다른 보고서
+            // 서식)는 조판이 각 행의 경계를 그대로 그린다. 열 격자 폭(열마다 가장 넓은
+            // 셀)으로 다시 계산하면 새 행만 경계가 어긋난다. 이웃 셀이 없을 때만 격자 폭을 쓴다.
+            let width: HwpUnit = neighbor.map(|cell| cell.width).unwrap_or_else(|| {
+                (col..end)
+                    .map(|c| col_widths[c as usize])
+                    .fold(0 as HwpUnit, |acc, w| acc.saturating_add(w))
+            });
+            // 템플릿은 같은 칸 나눔을 쓰는 셀을 먼저 찾는다 — 그 셀의 서식이 새 칸에 맞다
+            let template = neighbor
                 .or_else(|| {
                     self.cells
                         .iter()
