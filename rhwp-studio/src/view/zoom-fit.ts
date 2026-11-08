@@ -1,3 +1,4 @@
+import { fitWidthZoomWithBand } from './page-band.ts';
 import {
   MAX_DOCUMENT_ZOOM,
   MIN_DOCUMENT_ZOOM,
@@ -55,6 +56,8 @@ export interface ArrangementFitWidthInput {
   pageWidth: number;
   arrangement: PageArrangement;
   pageGap?: number;
+  /** 쪽 오른쪽 띠(메모) 폭 px, 100% 기준 — 배율에 비례하므로 쪽 폭에 더해 나눈다 */
+  rightBandAt100?: number;
 }
 
 /** 현재 쪽 배치의 한 행 전체가 문서 창 너비 안에 들어오도록 배율을 계산한다. */
@@ -67,10 +70,13 @@ export function calculateArrangementFitWidthZoom(
   ) return 1;
   const { columns } = pageGridForArrangement(input.arrangement);
   const pageGap = normalizePageGap(input.pageGap);
-  const availableWidth = input.containerWidth
-    - HORIZONTAL_FRAME_PADDING
-    - pageGap * (columns - 1);
-  return clampRequestedZoom(availableWidth / (input.pageWidth * columns));
+  return clampRequestedZoom(fitWidthZoomWithBand({
+    containerWidth: input.containerWidth,
+    pageWidth: input.pageWidth,
+    columns,
+    pageGap,
+    bandAt100: input.rightBandAt100 ?? 0,
+  }));
 }
 
 export interface ArrangementFitPageInput extends ArrangementFitWidthInput {
@@ -132,6 +138,7 @@ export interface ZoomFitMetrics {
   pageHeight: number;
   arrangement: PageArrangement;
   pageGap?: number;
+  rightBandAt100?: number;
 }
 
 /**
@@ -151,6 +158,7 @@ export function resolveZoomFitZoom(
         pageWidth: metrics.pageWidth,
         arrangement: metrics.arrangement,
         pageGap: metrics.pageGap,
+        rightBandAt100: metrics.rightBandAt100,
       });
     case 'fitPage':
       return calculateArrangementFitPageZoom(metrics);

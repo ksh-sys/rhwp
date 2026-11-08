@@ -6,6 +6,7 @@ import {
 } from './page-arrangement.ts';
 import type { PageMovementDirection } from './page-movement.ts';
 import { resolvePageGap } from './page-gap.ts';
+import { getRightBandAt100, setRightBandAt100, singleColumnLeft } from './page-band.ts';
 
 /** 자동 열 경계에서 resize/zoom 미세 입력이 왕복하지 않게 하는 CSS px 여유. */
 const AUTO_COLUMN_HYSTERESIS_PX = 8;
@@ -124,6 +125,7 @@ export class VirtualScroll {
     snapshot: VisibilitySnapshot;
   } | null = null;
   private maxPageWidth = 0;
+  private rightBandPx = 0;
   private totalHeight = 0;
   private totalWidth = 0;
   private columns = 1;
@@ -153,6 +155,8 @@ export class VirtualScroll {
     this.pageHeights = pages.map((p) => p.height * zoom);
     this.pageWidths = pages.map((p) => p.width * zoom);
     this.maxPageWidth = Math.max(...this.pageWidths, 0);
+    // 쪽 오른쪽 띠(메모 풍선) — 쪽 폭이 아니라 슬롯 폭에만 더한다. 배율에 비례.
+    this.rightBandPx = getRightBandAt100() * zoom;
 
     this.horizontalMode = movement === 'horizontal';
     if (this.horizontalMode) {
@@ -168,7 +172,7 @@ export class VirtualScroll {
     switch (normalized.kind) {
       case 'single':
         this.gridMode = false;
-        this.layoutSingleColumn();
+        this.layoutSingleColumn(viewportWidth);
         break;
       case 'double':
         this.gridMode = true;
@@ -199,7 +203,7 @@ export class VirtualScroll {
           if (this.gridMode) {
             this.layoutUniformGrid(viewportWidth, columns);
           } else {
-            this.layoutSingleColumn();
+            this.layoutSingleColumn(viewportWidth);
           }
         }
         break;
@@ -246,7 +250,8 @@ export class VirtualScroll {
       ? [this.pageHeights.map((_, pageIdx) => pageIdx)]
       : [];
 
-    const innerWidth = this.pageWidths.reduce((sum, width) => sum + width, 0)
+    const band = this.rightBandPx;
+    const innerWidth = this.pageWidths.reduce((sum, width) => sum + width + band, 0)
       + this.pageGap * Math.max(0, this.pageWidths.length - 1);
     const marginLeft = Math.max(this.pageGap, (viewportWidth - innerWidth) / 2);
     const maxPageHeight = Math.max(...this.pageHeights, 0);
@@ -259,30 +264,37 @@ export class VirtualScroll {
         this.pageGap,
         (this.totalHeight - this.pageHeights[pageIdx]) / 2,
       );
-      left += this.pageWidths[pageIdx] + this.pageGap;
+      left += this.pageWidths[pageIdx] + band + this.pageGap;
     }
     this.totalWidth = Math.max(viewportWidth, innerWidth + marginLeft * 2);
   }
 
-  /** 단일 열 배치 (기존 동작) */
-  private layoutSingleColumn(): void {
+  /** 단일 열 배치 (기존 동작). 오른쪽 띠가 있으면 쪽+띠 기준으로 명시 left 를 둔다. */
+  private layoutSingleColumn(viewportWidth = 0): void {
     this.columns = 1;
     this.pageOffsets = [];
     this.pageLefts = [];
     this.pageRows = [];
     this.pageColumns = [];
     this.rowPages = [];
+    const band = this.rightBandPx;
     let offset = this.pageGap;
     for (let i = 0; i < this.pageHeights.length; i++) {
       this.pageOffsets.push(offset);
-      this.pageLefts.push(-1); // -1 = CSS 중앙 정렬 사용
+      this.pageLefts.push(
+        band > 0
+          ? singleColumnLeft(viewportWidth, this.pageWidths[i] ?? 0, band, this.pageGap)
+          : -1, // -1 = CSS 중앙 정렬 사용
+      );
       this.pageRows.push(i);
       this.pageColumns.push(0);
       this.rowPages.push([i]);
       offset += this.pageHeights[i] + this.pageGap;
     }
     this.totalHeight = offset;
-    this.totalWidth = this.maxPageWidth + 40;
+    this.totalWidth = band > 0
+      ? Math.max(viewportWidth, this.maxPageWidth + band + 40)
+      : this.maxPageWidth + 40;
   }
 
   /** 연속 페이지를 고정 열 수로 배치한다. */
@@ -313,7 +325,8 @@ export class VirtualScroll {
     slots: { pageIdx: number; row: number; col: number }[],
   ): void {
     const gap = this.pageGap;
-    const pw = this.maxPageWidth;
+    const band = this.rightBandPx;
+    const pw = this.maxPageWidth + band; // 슬롯 폭 = 쪽 + 오른쪽 띠
     this.columns = columns;
     this.pageOffsets = new Array(this.pageHeights.length).fill(0);
     this.pageLefts = new Array(this.pageHeights.length).fill(0);
@@ -349,7 +362,7 @@ export class VirtualScroll {
       this.pageOffsets[pageIdx] = rowTops[row];
       this.pageLefts[pageIdx] = marginLeft
         + col * (pw + gap)
-        + (pw - (this.pageWidths[pageIdx] ?? 0)) / 2;
+        + (pw - ((this.pageWidths[pageIdx] ?? 0) + band)) / 2;
     }
 
     const lastRow = rowCount - 1;
@@ -391,7 +404,7 @@ export class VirtualScroll {
     this.pageLefts = this.pageLefts.map((left, pageIdx) => {
       const resolved = left >= 0
         ? left
-        : (baseWidth - (this.pageWidths[pageIdx] ?? 0)) / 2;
+        : (baseWidth - ((this.pageWidths[pageIdx] ?? 0) + this.rightBandPx)) / 2;
       return resolved + pan;
     });
     this.totalWidth = baseWidth + pan * 2;
@@ -687,12 +700,22 @@ export class VirtualScroll {
   getPageLeftResolved(pageIdx: number, containerWidth: number): number {
     const pl = this.pageLefts[pageIdx] ?? -1;
     if (pl >= 0) return pl;
-    const pw = this.pageWidths[pageIdx] ?? 0;
+    const pw = (this.pageWidths[pageIdx] ?? 0) + this.rightBandPx;
     return (containerWidth - pw) / 2;
   }
 
   getMaxPageWidth(): number {
     return this.maxPageWidth;
+  }
+
+  /** 쪽 오른쪽 띠(메모 풍선) 폭 — 100% 배율 기준 px. 0 이면 없음. 다음 setPageDimensions 부터 반영. */
+  setRightBandAt100(px: number): void {
+    setRightBandAt100(px);
+  }
+
+  /** 현재 배율이 적용된 띠 폭 px */
+  getRightBandPx(): number {
+    return this.rightBandPx;
   }
 
   /** 페이지 사이/위아래 여백(px). 빈 쪽 자리표시자도 같은 여백을 쓴다. */

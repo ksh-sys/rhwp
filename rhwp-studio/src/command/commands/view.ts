@@ -1,3 +1,4 @@
+import { getRightBandAt100 } from '@/view/page-band';
 import type { CommandDef, CommandServices } from '../types';
 import { setThemeMode, setThemeSkin, syncThemeMenu, type EffectiveTheme } from '../../core/theme';
 import { userSettings, type ThemeMode, type ThemeSkin } from '../../core/user-settings';
@@ -45,6 +46,7 @@ function getZoomFitMetrics(
     pageHeight: pageInfo.height,
     arrangement,
     pageGap: PAGE_GAP,
+    rightBandAt100: getRightBandAt100(),
   };
 }
 

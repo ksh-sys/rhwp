@@ -1,3 +1,4 @@
+import { getRightBandAt100 } from '@/view/page-band';
 import { setHostFontProvider, onHostFontsChanged, hasHostFontProvider, prepareHostFontCatalog, getHostFontState, localFontFaceKey, type LocalFontRecord } from '@/core/local-fonts';
 import { collectHostFontRequests } from '@/core/host-font-requests';
 import { WasmBridge } from '@/core/wasm-bridge';
@@ -1349,6 +1350,7 @@ function applySavedZoomFitMode(mode: ZoomFitMode): void {
       pageWidth: pageInfo.width,
       pageHeight: pageInfo.height,
       arrangement: userSettings.getViewSettings().pageArrangement,
+      rightBandAt100: getRightBandAt100(),
     });
     if (zoom !== null) vm.setZoom(zoom, CENTER_ZOOM_ANCHOR, mode);
   } catch (error) {
