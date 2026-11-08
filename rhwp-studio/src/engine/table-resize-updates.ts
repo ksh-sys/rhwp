@@ -147,3 +147,76 @@ export function buildColumnResizeUpdates(
   }
   return updates;
 }
+
+/** 셀 격자 위치 + 저장된 크기(HWPUNIT, getCellProperties 의 width/height). */
+export type CellGeometry = Pick<CellBbox, 'cellIdx' | 'row' | 'col' | 'rowSpan' | 'colSpan'> & {
+  width: number;
+  height: number;
+};
+
+function uniqueGeometry(cells: CellGeometry[]): CellGeometry[] {
+  const seen = new Set<number>();
+  return cells.filter((c) => (seen.has(c.cellIdx) ? false : (seen.add(c.cellIdx), true)));
+}
+
+/** 합 total 을 n 칸에 나눌 때 k 번째 경계 — 반올림 오차가 한 칸에 몰리지 않고 합은 그대로 남는다. */
+function equalEdge(total: number, n: number, k: number): number {
+  return Math.round((total * k) / n);
+}
+
+/**
+ * 셀 너비를 같게 (한컴 F5 블록 + W): 선택한 줄마다 선택 칸들의 너비 합을 칸 수로 고르게
+ * 다시 나눈다. 줄의 폭 합이 그대로라 표 바깥 폭과 선택 밖 칸은 변하지 않는다.
+ * HWP 는 셀마다 자기 너비를 저장하므로(키보드·마우스 칸 크기 조절과 같은 경로) 그대로 저장된다.
+ * 병합 셀이 선택 칸 경계를 넘는 줄은 고르게 나눌 수 없어 건드리지 않는다.
+ */
+export function buildEqualWidthUpdates(cells: CellGeometry[], range: CellSelectionRange): LocalResizeUpdate[] {
+  const n = range.endCol - range.startCol + 1;
+  if (n < 2) return [];
+  const unique = uniqueGeometry(cells);
+  const target = new Map<number, number>();
+  for (let r = range.startRow; r <= range.endRow; r++) {
+    const rowCells = unique.filter((c) =>
+      c.row <= r && r < c.row + c.rowSpan
+      && c.col <= range.endCol && c.col + c.colSpan - 1 >= range.startCol);
+    const crosses = rowCells.some((c) => c.col < range.startCol || c.col + c.colSpan - 1 > range.endCol);
+    const covered = rowCells.reduce((sum, c) => sum + c.colSpan, 0);
+    if (crosses || covered !== n) continue;
+    const total = rowCells.reduce((sum, c) => sum + c.width, 0);
+    for (const c of rowCells) {
+      if (target.has(c.cellIdx)) continue;
+      const lo = c.col - range.startCol;
+      target.set(c.cellIdx, equalEdge(total, n, lo + c.colSpan) - equalEdge(total, n, lo));
+    }
+  }
+  return unique
+    .filter((c) => target.has(c.cellIdx) && target.get(c.cellIdx) !== c.width)
+    .map((c) => ({ cellIdx: c.cellIdx, widthDelta: target.get(c.cellIdx)! - c.width }));
+}
+
+/**
+ * 셀 높이를 같게 (한컴 F5 블록 + H): 선택한 줄들의 높이 합을 줄 수로 고르게 다시 나눈다.
+ * 줄 높이는 그 줄 셀 높이의 최댓값으로 그려지므로, 선택 칸만이 아니라 그 줄의 모든 셀을 맞춘다
+ * — 일부 칸만 바꾸면 남은 칸이 줄을 붙잡아 화면이 바뀌지 않는다. 줄 높이를 잴 셀(줄 병합 아닌
+ * 셀)이 없는 줄이 있으면 고르게 나눌 수 없어 아무것도 하지 않는다.
+ */
+export function buildEqualHeightUpdates(cells: CellGeometry[], range: CellSelectionRange): LocalResizeUpdate[] {
+  const n = range.endRow - range.startRow + 1;
+  if (n < 2) return [];
+  const unique = uniqueGeometry(cells);
+  let total = 0;
+  for (let r = range.startRow; r <= range.endRow; r++) {
+    const heights = unique.filter((c) => c.row === r && c.rowSpan === 1).map((c) => c.height);
+    if (heights.length === 0) return [];
+    total += Math.max(...heights);
+  }
+  const updates: LocalResizeUpdate[] = [];
+  for (const c of unique) {
+    const last = c.row + c.rowSpan - 1;
+    if (c.row < range.startRow || last > range.endRow) continue;
+    const lo = c.row - range.startRow;
+    const height = equalEdge(total, n, lo + c.rowSpan) - equalEdge(total, n, lo);
+    if (height !== c.height) updates.push({ cellIdx: c.cellIdx, heightDelta: height - c.height });
+  }
+  return updates;
+}

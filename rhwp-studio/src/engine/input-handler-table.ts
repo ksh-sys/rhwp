@@ -11,8 +11,11 @@ import type { BorderEdge } from './table-resize-renderer';
 import {
   buildColumnResizeUpdates,
   buildCellSelectionColumnDragUpdates,
+  buildEqualHeightUpdates,
+  buildEqualWidthUpdates,
   cellOverlapsSelectionRange,
   findResizeCompensationNeighbors,
+  type CellGeometry,
   type CellSelectionRange,
   type LocalResizeUpdate,
   type ResizeArrowKey,
@@ -894,6 +897,57 @@ function applyKeyboardResize(
 /** Ctrl/Cmd+방향키 — 칸/줄 전체 크기 조절 (한컴 table(size).htm). */
 export function resizeCellByKeyboard(this: any, key: ResizeArrowKey): void {
   applyKeyboardResize.call(this, key, 'resizeCellByKeyboard', buildColumnResizeUpdates);
+}
+
+/**
+ * 셀 너비/높이를 같게 (F5 셀 블록 W/H, 표 탭 단추). 저장된 셀 크기를 읽어 고르게 나눈 뒤
+ * 키보드 칸 크기 조절과 같은 resizeTableCells(경로 API 포함) 한 번으로 적용한다.
+ * 바뀐 것이 없으면(한 칸만 골랐거나 이미 같으면) false.
+ */
+export function equalizeSelectedCells(this: any, axis: 'width' | 'height'): boolean {
+  const ctx = this.cursor.getCellTableContext();
+  const range = this.cursor.getSelectedCellRange();
+  if (!ctx || !range) return false;
+  const nestedPathJson = ctx.cellPath && ctx.cellPath.length > 1 ? JSON.stringify(ctx.cellPath) : undefined;
+
+  let cells: CellGeometry[];
+  try {
+    const bboxes: CellBbox[] = nestedPathJson
+      ? this.wasm.getTableCellBboxesByPath(ctx.sec, ctx.ppi, nestedPathJson)
+      : this.wasm.getTableCellBboxes(ctx.sec, ctx.ppi, ctx.ci);
+    const seen = new Set<number>();
+    cells = [];
+    for (const b of bboxes) {
+      if (seen.has(b.cellIdx)) continue;
+      seen.add(b.cellIdx);
+      const props = nestedPathJson
+        ? this.wasm.getCellPropertiesByPath(ctx.sec, ctx.ppi, nestedPathJson, b.cellIdx)
+        : this.wasm.getCellProperties(ctx.sec, ctx.ppi, ctx.ci, b.cellIdx);
+      cells.push({ ...b, width: props.width, height: props.height });
+    }
+  } catch { return false; }
+
+  const updates = axis === 'width' ? buildEqualWidthUpdates(cells, range) : buildEqualHeightUpdates(cells, range);
+  if (updates.length === 0) return false;
+  try {
+    this.executeOperation({
+      kind: 'snapshot',
+      operationType: axis === 'width' ? 'equalizeCellWidths' : 'equalizeCellHeights',
+      operation: (wasm: any) => {
+        if (nestedPathJson) {
+          wasm.resizeTableCellsByPath(ctx.sec, ctx.ppi, nestedPathJson, updates);
+        } else {
+          wasm.resizeTableCells(ctx.sec, ctx.ppi, ctx.ci, updates);
+        }
+        return this.cursor.getPosition();
+      },
+    });
+    this.updateCellSelection();
+    return true;
+  } catch (err) {
+    console.warn(`[InputHandler] 셀 ${axis === 'width' ? '너비' : '높이'}를 같게 실패:`, err);
+    return false;
+  }
 }
 
 /** 전체 표 비율 리사이즈 (phase 3, Ctrl+방향키) */

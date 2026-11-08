@@ -12,7 +12,13 @@ export type ContextualShortcutResolution =
 export type CellBlockLetterShortcutResolution =
   | {
     kind: 'dispatch';
-    commandId: 'table:cell-split' | 'table:cell-merge' | 'table:border-each';
+    commandId:
+      | 'table:cell-split'
+      | 'table:cell-merge'
+      | 'table:border-each'
+      | 'table:cell-height-equal'
+      | 'table:cell-width-equal'
+      | 'table:cell-props';
   }
   | null;
 
@@ -33,6 +39,9 @@ export class CellBlockLetterImeGuard {
     const imeOwned = event.key === 'ㄴ'
       || event.key === 'ㅡ'
       || event.key === 'ㅊ'
+      || event.key === 'ㅗ'
+      || event.key === 'ㅈ'
+      || event.key === 'ㅔ'
       || event.key === 'Process'
       || event.isComposing
       || event.keyCode === 229;
@@ -92,7 +101,7 @@ export function resolveCellBlockCtrlShiftS(
 }
 
 /**
- * F5 셀 블록의 수정자 없는 물리 S/M/C를 입력 언어와 무관하게 셀 명령으로 해석한다.
+ * F5 셀 블록의 수정자 없는 물리 S/M/C/H/W/P를 입력 언어와 무관하게 셀 명령으로 해석한다.
  * Shift는 대문자 S/M 입력에 쓰일 수 있어 허용하고, Ctrl/Meta/Alt가 있으면 다른 단축키
  * 소유권을 침범하지 않는다. `Process`는 code가 실제 물리 키를 알려줄 때만 처리한다.
  */
@@ -113,6 +122,17 @@ export function resolveCellBlockLetterShortcut(
   // C: 셀 테두리/배경 — 한컴과 같은 자리 (사용자 요청)
   if (key === 'c' || event.key === 'ㅊ' || code === 'keyc') {
     return { kind: 'dispatch', commandId: 'table:border-each' };
+  }
+  // H/W: 셀 높이/너비를 같게 — 한컴과 같은 자리
+  if (key === 'h' || event.key === 'ㅗ' || code === 'keyh') {
+    return { kind: 'dispatch', commandId: 'table:cell-height-equal' };
+  }
+  if (key === 'w' || event.key === 'ㅈ' || code === 'keyw') {
+    return { kind: 'dispatch', commandId: 'table:cell-width-equal' };
+  }
+  // P: 표/셀 속성 — 한컴과 같은 자리 (사용자 요청)
+  if (key === 'p' || event.key === 'ㅔ' || code === 'keyp') {
+    return { kind: 'dispatch', commandId: 'table:cell-props' };
   }
   return null;
 }

@@ -310,6 +310,29 @@ function executeNavigationAction(this: any, action: NavigationAction, shiftKey: 
   if (shiftKey) this.updateSelection();
 }
 
+/**
+ * 표 칸 안에서 Ctrl+방향키: 지금 칸의 칸(열) 너비 / 줄(행) 높이를 조절한다 — 한컴처럼 F5 블록
+ * 없이도 (사용자 요청). F5 블록의 Ctrl+방향키(resizeCellByKeyboard)를 지금 칸 하나로 그대로 쓴다.
+ * 단어·문단 이동(Ctrl+방향키)은 표 밖에서만 남는다. 맥의 Cmd+방향키(줄 처음/끝)는 건드리지 않는다.
+ */
+function resizeCellFromCaret(this: any, e: KeyboardEvent): boolean {
+  if (!e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
+  if (getCellSelectionArrowAction(e) !== 'resize') return false;
+  if (!this.cursor.isInCell() || this.cursor.isInTextBox()) return false;
+  e.preventDefault();
+  const pos = this.cursor.getPosition();
+  if (!this.cursor.enterCellSelectionMode()) return true;
+  try {
+    this.resizeCellByKeyboard(e.key as 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight');
+  } finally {
+    this.cursor.exitCellSelectionMode();
+    this.cellSelectionRenderer?.clear();
+    this.cursor.moveTo(pos);
+    this.updateCaret();
+  }
+  return true;
+}
+
 function handleNavigationShortcut(this: any, e: KeyboardEvent): boolean {
   const input = toNavigationKeyInput(e);
   const platform = detectPlatformKind();
@@ -1335,6 +1358,7 @@ export function onKeyDown(this: any, e: KeyboardEvent): void {
     // fall through: 아래 기존 키 처리 계속 진행
   }
 
+  if (resizeCellFromCaret.call(this, e)) return;
   if (handleNavigationShortcut.call(this, e)) return;
 
   // Ctrl/Meta 조합 처리 (Ctrl+Enter, Ctrl+C 등 모두 shortcut-map.ts에서 정의)

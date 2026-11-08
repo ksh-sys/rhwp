@@ -22,9 +22,9 @@ import { t } from '../../i18n/index.ts';
 const inTable = (ctx: EditorContext) => ctx.inTable;
 const inTableOrCellSelection = (ctx: EditorContext) => ctx.inTable || ctx.inCellSelectionMode;
 const hasMultiCellSelection = (ctx: EditorContext) => ctx.hasMultiCellSelection;
-// HWP/HWPX cannot persist independent per-row or per-column geometry. Keep
-// commands that require that representation unavailable at command routing.
-const localTableGeometryCanPersist = () => false;
+// 셀 너비/높이를 같게: HWP/HWPX 에 줄·칸 단위 크기는 없지만 셀마다 자기 너비·높이를 저장한다.
+// 선택 셀 각각의 크기를 고르게 맞추는 방식이라 키보드·마우스 칸 크기 조절처럼 그대로 저장된다.
+const canEqualizeCells = (ctx: EditorContext) => ctx.inCellSelectionMode && ctx.hasMultiCellSelection;
 
 type CellRange = { startRow: number; startCol: number; endRow: number; endCol: number };
 type TableDimensions = { rowCount: number; colCount: number; cellCount: number };
@@ -969,15 +969,19 @@ export const tableCommands: CommandDef[] = [
     id: 'table:cell-height-equal',
     label: t('command.table.cellHeightEqual.label'),
     shortcutLabel: 'H',
-    canExecute: localTableGeometryCanPersist,
-    execute() {},
+    canExecute: canEqualizeCells,
+    execute(services) {
+      services.getInputHandler()?.equalizeSelectedCells('height');
+    },
   },
   {
     id: 'table:cell-width-equal',
     label: t('command.table.cellWidthEqual.label'),
     shortcutLabel: 'W',
-    canExecute: localTableGeometryCanPersist,
-    execute() {},
+    canExecute: canEqualizeCells,
+    execute(services) {
+      services.getInputHandler()?.equalizeSelectedCells('width');
+    },
   },
   {
     id: 'table:formula',

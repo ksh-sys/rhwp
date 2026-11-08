@@ -1428,6 +1428,11 @@ export class InputHandler {
     _table.resizeCellByKeyboard.call(this, key);
   }
 
+  /** 셀 블록의 너비/높이를 같게 (table:cell-width-equal·cell-height-equal) */
+  equalizeSelectedCells(axis: 'width' | 'height'): boolean {
+    return _table.equalizeSelectedCells.call(this, axis);
+  }
+
   private resizeTableProportional(key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
     _table.resizeTableProportional.call(this, key);
   }

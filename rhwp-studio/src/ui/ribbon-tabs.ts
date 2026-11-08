@@ -224,7 +224,8 @@ export const RIBBONS: Record<string, RibbonGroup[]> = {
     [
       { cmd: 'table:cell-split', label: '셀\n나누기', icon: 'cell-split' },
       { cmd: 'table:cell-merge', label: '셀\n합치기', icon: 'cell-merge' },
-      // 셀 높이/너비를 같게(table:cell-height-equal·width-equal)는 업스트림에서 아직 빈 명령이라 두지 않는다
+      { cmd: 'table:cell-width-equal', label: '셀 너비를\n같게', icon: 'width-equal' },
+      { cmd: 'table:cell-height-equal', label: '셀 높이를\n같게', icon: 'height-equal' },
     ],
     [
       { cmd: 'table:block-formula', label: '계산식', icon: 'formula' },
