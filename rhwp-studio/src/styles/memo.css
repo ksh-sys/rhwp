@@ -131,3 +131,73 @@
   background: #d2649a;
   height: 3px;
 }
+
+/* ── 메모 내용 보기 창 ── */
+.memo-pane {
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--ui-border, #c8c8c8);
+  background: var(--ui-surface, #fff);
+  color: var(--ui-text, #222);
+  font-size: 12px;
+}
+
+.memo-pane-head {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--ui-border-light, #e0e0e0);
+  background: var(--ui-surface-raised, #f5f5f5);
+}
+
+.memo-pane-title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.memo-pane-close {
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-secondary, #666);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.memo-pane-list {
+  flex: 1;
+  overflow: auto;
+}
+
+.memo-pane-row {
+  display: grid;
+  grid-template-columns: 44px 100px 120px minmax(0, 1fr);
+  gap: 8px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--ui-border-subtle, #eee);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.memo-pane-row:hover {
+  background: var(--ui-hover, #f0f4ff);
+}
+
+.memo-pane-row.active {
+  background: var(--ui-selected, #e4ecff);
+}
+
+.memo-pane-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memo-pane-page {
+  text-align: right;
+  color: var(--ui-text-secondary, #666);
+}
+
+.memo-pane-empty {
+  padding: 12px;
+  color: var(--ui-text-muted, #888);
+}

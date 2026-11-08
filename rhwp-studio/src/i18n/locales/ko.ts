@@ -1823,6 +1823,7 @@ const catalog = {
   "memo.noRange.text": "메모를 달 글자를 선택하거나 낱말 위에 커서를 두세요.",
   "memo.openOptions.text": "환경 설정 열기",
   "memo.overlapsField.text": "하이퍼링크·누름틀 안에는 메모를 달 수 없습니다. 바깥 글자를 선택하세요.",
+  "memo.pane.empty.text": "메모가 없습니다.",
   "memo.removedWithText.text": "글자가 지워져 메모도 삭제되었습니다.",
   "memo.unreadableHwp.text": ".hwp 파일의 메모 내용은 읽지 못합니다",
   "menu.edit": "편집",

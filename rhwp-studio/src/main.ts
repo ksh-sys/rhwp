@@ -1,3 +1,5 @@
+import { MemoPane } from './memo/memo-pane.ts';
+import type { MemoEntry } from './memo/memo-types.ts';
 import { collapsedMemos, positionToMemoLocation } from './memo/memo-collapse.ts';
 import { reviewCommands, syncMemoMenu } from '@/command/commands/review';
 import { setMemoServices } from './memo/memo-services.ts';
@@ -778,6 +780,33 @@ async function initialize(): Promise<void> {
     memoStore.onChange(memoReposition);
     setMemoServices({ store: memoStore, layer: memoLayer });
     syncMemoMenu();
+    // 메모 내용 보기 창 — 행 클릭은 이전/다음과 같은 경로(쪽 이동 + 활성화)
+    const memoPageOf = (entry: MemoEntry): number => {
+      try {
+        const loc = entry.location;
+        if (!loc.path || loc.path.length === 0) {
+          return (wasm.getSelectionRects(loc.sectionIndex, loc.paraIndex, entry.startCharIdx, loc.paraIndex, entry.endCharIdx)[0]?.pageIndex ?? -1) + 1;
+        }
+        if (loc.path.length === 1 && loc.path[0].type === 'cell') {
+          const p = loc.path[0];
+          return (wasm.getSelectionRectsInCell(loc.sectionIndex, loc.paraIndex, p.controlIndex, p.cellIndex ?? 0, p.paraIndex, entry.startCharIdx, p.paraIndex, entry.endCharIdx)[0]?.pageIndex ?? -1) + 1;
+        }
+      } catch {
+        /* 쪽을 모르면 0 */
+      }
+      return 0;
+    };
+    const memoPane = new MemoPane(document.getElementById('memo-pane')!, memoStore, {
+      pageOf: memoPageOf,
+      onSelect: (entry) => {
+        const page = memoPageOf(entry);
+        if (page > 0) canvasView?.gotoPage(page - 1);
+        memoStore!.setActive(entry.fieldId);
+        eventBus.emit('memo-activate', entry.fieldId);
+      },
+    });
+    memoStore.onChange(() => memoPane.render());
+    eventBus.on('memo-settings-changed', () => memoPane.setVisible(userSettings.getReviewSettings().showMemoList));
     eventBus.on('memo-activate', (id) => {
       memoLayer!.render();
       // 명령 실행 직후 InputHandler 가 숨은 textarea 로 포커스를 되돌리므로 한 틱 뒤에 풍선으로 옮긴다
