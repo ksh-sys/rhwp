@@ -102,9 +102,7 @@ copy(resolve(ROOT, 'rhwp-studio', 'public', 'locale-init.js'), resolve(DIST, 'lo
 // 열므로(new URL(surfacePath, baseUrl)) dist 최상위에 있어야 한다. 같은 확장 origin 이라
 // web_accessible_resources 등재는 불필요하다.
 copy(resolve(ROOT, 'rhwp-studio', 'public', 'print.html'), resolve(DIST, 'print.html'));
-copy(resolve(ROOT, 'rhwp-studio', 'public', 'images', 'icon_small_ko.svg'), resolve(DIST, 'images', 'icon_small_ko.svg'));
-// [#1444] 다크 모드 아이콘 스프라이트 (base.css 다크 테마에서 참조). 누락 시 viewer 404.
-copy(resolve(ROOT, 'rhwp-studio', 'public', 'images', 'icon_small_ko_dark.svg'), resolve(DIST, 'images', 'icon_small_ko_dark.svg'));
+// 아이콘은 CSS 안의 Lucide 마스크(icons-lucide.css)라 스프라이트 파일을 복사하지 않는다.
 copy(resolve(ROOT, 'rhwp-studio', 'public', 'favicon.ico'), resolve(DIST, 'favicon.ico'));
 
 // 3. WASM 복사

@@ -161,9 +161,8 @@ async function runOnce(prefix) {
     assert.equal(viewerState.theme, 'dark');
     assert.ok(viewerState.canvasCount >= 1, 'viewer 문서 canvas가 생성되지 않았습니다.');
     assert.match(viewerState.status, /extension-smoke\.hwp/);
-    assert.match(viewerState.iconUrl ?? '', /\/images\/icon_small_ko_dark\.svg$/);
-    assert.equal(viewerState.iconStatus, 200);
-    assert.ok(viewerState.iconBytes > 0, '다크 테마 아이콘 자산이 비어 있습니다.');
+    // 아이콘은 CSS 안의 Lucide 마스크라 별도 스프라이트를 받지 않는다
+    assert.equal(viewerState.iconUrl, null, '아이콘 스프라이트를 다시 참조하고 있습니다.');
     assert.match(
       viewerState.workerProbeError ?? '',
       /로컬 또는 내부 네트워크 URL은 차단됩니다/,

@@ -1,6 +1,7 @@
 @import './styles/base.css';
 @import './styles/menu-bar.css';
 @import './styles/toolbar.css';
+@import './styles/icons-lucide.css';
 @import './styles/style-bar.css';
 @import './styles/editor.css';
 @import './styles/status-bar.css';
