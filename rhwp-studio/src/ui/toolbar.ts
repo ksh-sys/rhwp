@@ -36,6 +36,7 @@ export class Toolbar {
   private btnTextColor: HTMLButtonElement;
   private colorPicker: HTMLInputElement;
   private colorBar: HTMLElement;
+  private textColorDropdown: HTMLElement;
   private btnHighlight: HTMLButtonElement;
   private highlightDropdown: HTMLElement;
   private highlightBar: HTMLElement;
@@ -78,6 +79,7 @@ export class Toolbar {
     this.btnTextColor = container.querySelector('#btn-text-color')!;
     this.colorPicker = container.querySelector('#text-color-picker')!;
     this.colorBar = container.querySelector('#color-bar')!;
+    this.textColorDropdown = container.querySelector('#text-color-dropdown')!;
     this.btnHighlight = container.querySelector('#btn-highlight')!;
     this.highlightDropdown = container.querySelector('#highlight-dropdown')!;
     this.highlightBar = container.querySelector('#highlight-bar')!;
@@ -345,14 +347,67 @@ export class Toolbar {
     });
   }
 
-  /** 글자색 피커 이벤트 */
+  /** 글자색 팔레트 설정 — 단추는 팔레트를 열고, 팔레트에 없는 색만 기본 색 창(스포이드·RGB)으로 고른다 */
   private setupColorPicker(): void {
+    // 첫 줄은 무채색, 아래는 형광펜과 같은 색환 (7열 × 7행 + 하단 「다른 색...」)
+    const PALETTE = [
+      ['#000000', '#404040', '#808080', '#a6a6a6', '#d9d9d9', '#ffffff', '#1c5aa8'],
+      ['#ff0000', '#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff'],
+      ['#0080ff', '#0000ff', '#8000ff', '#ff00ff', '#ff0080', '#c0c0c0', '#808080'],
+      ['#ff9999', '#ffcc99', '#ffff99', '#ccff99', '#99ff99', '#99ffcc', '#99ffff'],
+      ['#99ccff', '#9999ff', '#cc99ff', '#ff99ff', '#ff99cc', '#e0e0e0', '#404040'],
+      ['#cc0000', '#cc6600', '#cccc00', '#66cc00', '#00cc00', '#00cc66', '#00cccc'],
+      ['#0066cc', '#0000cc', '#6600cc', '#cc00cc', '#cc0066', '#999999', '#000000'],
+    ];
+
+    const palette = this.container.querySelector('#text-color-palette')!;
+    const close = () => this.textColorDropdown.classList.remove('open');
+    const apply = (color: string) => {
+      this.colorPicker.value = color;
+      this.colorBar.style.background = color;
+      this.eventBus.emit('format-char', { textColor: color } as CharProperties);
+      close();
+    };
+
+    // 색상 스워치 행들
+    for (const row of PALETTE) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'sb-hl-palette-row';
+      for (const color of row) {
+        const swatch = document.createElement('div');
+        swatch.className = 'sb-hl-swatch';
+        swatch.title = color;
+        swatch.style.background = color;
+        swatch.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          apply(color);
+        });
+        rowEl.appendChild(swatch);
+      }
+      palette.appendChild(rowEl);
+    }
+
+    // "다른 색..." — 팔레트에 없는 색은 숨은 input 의 기본 색 창으로
+    const actRow = document.createElement('div');
+    actRow.className = 'sb-hl-palette-actions';
+    const btnOther = document.createElement('button');
+    btnOther.textContent = t('dialog.toolbar.btnOther.text');
+    btnOther.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+    });
+    btnOther.addEventListener('click', () => {
+      close();
+      this.colorPicker.click();
+    });
+    actRow.appendChild(btnOther);
+    palette.appendChild(actRow);
+
     // 선택은 mousedown에서 보존하고, 키보드도 발생시키는 click에서 활성화한다.
     this.btnTextColor.addEventListener('mousedown', (e) => {
       e.preventDefault();
     });
     this.btnTextColor.addEventListener('click', () => {
-      this.colorPicker.click();
+      this.textColorDropdown.classList.toggle('open');
     });
 
     this.colorPicker.addEventListener('input', () => {
@@ -360,6 +415,19 @@ export class Toolbar {
       this.colorBar.style.background = color;
       this.eventBus.emit('format-char', { textColor: color } as CharProperties);
     });
+
+    this.textColorDropdown.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !this.textColorDropdown.classList.contains('open')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      this.btnTextColor.focus();
+    });
+
+    // 외부 클릭 시 닫기 — 형광펜 단추는 mousedown 전파를 끊으므로 캡처 단계에서 본다
+    document.addEventListener('mousedown', (e) => {
+      if (!this.textColorDropdown.contains(e.target as Node)) close();
+    }, true);
   }
 
   /** 형광펜 팔레트 설정 */

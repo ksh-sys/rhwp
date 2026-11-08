@@ -10,6 +10,12 @@ import {
 const OTHER = '#highlight-palette button:nth-of-type(2)';
 const NONE = '#highlight-palette button:first-of-type';
 const PICKER = '#highlight-palette input[type="color"]';
+// 글자색 단추는 팔레트를 열고, 기본 색 창은 팔레트의 「다른 색...」으로 연다
+const TEXT_OTHER = '#text-color-palette button';
+
+async function isTextOpen(page) {
+  return page.$eval('#text-color-dropdown', element => element.classList.contains('open'));
+}
 
 async function tabTo(page, selector) {
   await page.click('#font-size');
@@ -105,10 +111,15 @@ runTest('색상 버튼 표준 활성화와 선택 보존 (#6635)', async ({ page
   for (const key of ['Enter', 'Space']) {
     setTestCase(`${key}: Tab으로 이동한 세 버튼의 표준 활성화`);
     await tabTo(page, '#btn-text-color');
+    await page.keyboard.press(key);
+    assert(await isTextOpen(page), `${key}: 글자색 팔레트가 열린다`);
+    await page.keyboard.press('Tab');
+    assert(await page.$eval(TEXT_OTHER, element => element === document.activeElement), '글자색 다른 색 버튼에 포커스');
     const beforeText = await page.evaluate(() => window.__colorPickerClicks.text);
     await page.keyboard.press(key);
     assert(await page.evaluate(() => window.__colorPickerClicks.text) === beforeText + 1,
       `${key}: 글자색 input이 정확히 한 번 활성화된다`);
+    assert(!await isTextOpen(page), `${key}: 다른 색을 누르면 글자색 팔레트가 닫힌다`);
     await page.keyboard.press('Escape');
 
     await tabTo(page, '#btn-highlight');
@@ -132,7 +143,8 @@ runTest('색상 버튼 표준 활성화와 선택 보존 (#6635)', async ({ page
   }
 
   setTestCase('마우스 활성화와 유효한 색상 input 구조');
-  for (const [button, counter] of [['#btn-text-color', 'text'], [OTHER, 'highlight']]) {
+  for (const [button, counter] of [[TEXT_OTHER, 'text'], [OTHER, 'highlight']]) {
+    if (counter === 'text' && !await isTextOpen(page)) await page.click('#btn-text-color');
     if (counter === 'highlight') await openPalette(page);
     const before = await page.evaluate(name => window.__colorPickerClicks[name], counter);
     await page.click(button);

@@ -576,6 +576,7 @@
   box-shadow: var(--shadow-light);
 }
 #highlight-dropdown.open .sb-hl-palette { display: block; }
+#text-color-dropdown.open .sb-hl-palette { display: block; }
 
 .sb-hl-palette-row {
   display: flex;
