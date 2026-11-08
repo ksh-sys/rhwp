@@ -1,0 +1,133 @@
+/* 메모(검토 주석) 오버레이 — 쪽 오른쪽 띠·풍선·안내선·본문 밑줄 */
+.memo-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.memo-guides {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.memo-guides line {
+  stroke: #a9a9a9;
+  stroke-width: 1;
+}
+
+.memo-guides line.active {
+  stroke: #d2649a;
+  stroke-width: 1.5;
+}
+
+.memo-band {
+  position: absolute;
+  background: var(--doc-workspace, #e9e9e9);
+  border-left: 1px dashed var(--ui-border-light, #d0d0d0);
+  box-sizing: border-box;
+}
+
+.memo-balloon {
+  position: absolute;
+  box-sizing: border-box;
+  background: #cbff99;
+  border: 1px solid #a9a9a9;
+  border-radius: 3px;
+  padding: 4px 6px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #1a1a1a;
+  pointer-events: auto;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.memo-balloon.active {
+  background: #fdbcdd;
+  border-color: #d2649a;
+}
+
+.memo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 3px;
+  color: #444;
+  font-size: 10px;
+}
+
+.memo-author {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.memo-when {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memo-close {
+  border: 0;
+  background: transparent;
+  color: #555;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.memo-close:hover {
+  color: #c00;
+}
+
+.memo-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.memo-body.memo-unreadable {
+  color: #777;
+  font-style: italic;
+}
+
+.memo-text {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  font: inherit;
+  color: inherit;
+  outline: none;
+  padding: 0;
+  min-height: 24px;
+}
+
+.memo-balloon.active .memo-text:focus {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.memo-anchor {
+  position: absolute;
+  height: 2px;
+  background: #a9a9a9;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.memo-anchor.active {
+  background: #d2649a;
+  height: 3px;
+}

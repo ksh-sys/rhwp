@@ -1,3 +1,5 @@
+import { MemoStore } from './memo/memo-store.ts';
+import { MemoLayer } from './memo/memo-layer.ts';
 import { getRightBandAt100 } from '@/view/page-band';
 import { setHostFontProvider, onHostFontsChanged, hasHostFontProvider, prepareHostFontCatalog, getHostFontState, localFontFaceKey, type LocalFontRecord } from '@/core/local-fonts';
 import { collectHostFontRequests } from '@/core/host-font-requests';
@@ -177,6 +179,8 @@ if (import.meta.env.DEV) {
 }
 let canvasView: CanvasView | null = null;
 let inputHandler: InputHandler | null = null;
+let memoStore: MemoStore | null = null;
+let memoLayer: MemoLayer | null = null;
 let documentAgent: DocumentAgentController | null = null;
 let toolbar: Toolbar | null = null;
 let ruler: Ruler | null = null;
@@ -700,6 +704,38 @@ async function initialize(): Promise<void> {
     inputHandler.setTableObjectRenderer(
       new TableObjectRenderer(container, canvasView.getVirtualScroll()),
     );
+
+    // 메모(검토 주석) 오버레이 — 목록은 문서 변경마다 엔진에서 다시 읽고, 위치는 배치·배율·스크롤마다 다시 그린다.
+    memoStore = new MemoStore(() => (wasm.pageCount > 0 ? wasm.getMemoList() : []));
+    memoLayer = new MemoLayer(container, canvasView.getVirtualScroll(), memoStore, wasm, {
+      getZoom: () => canvasView!.getViewportManager().getZoom(),
+      // ViewportManager 의 scrollX/Y 는 자체 핸들러 갱신값이라 프로그램 스크롤 직후엔 옛 값일 수 있다 — DOM 을 직접 읽는다.
+      getViewport: () => ({
+        scrollX: container.scrollLeft,
+        scrollY: container.scrollTop,
+        width: container.clientWidth,
+        height: container.clientHeight,
+      }),
+      onActivate: (id) => memoStore!.setActive(id),
+      requestRelayout: () => {
+        const size = canvasView!.getViewportManager().getViewportSize();
+        eventBus.emit('viewport-resize', size.width, size.height);
+      },
+    });
+    const memoRefresh = () => {
+      memoStore!.refresh();
+      memoLayer!.render();
+    };
+    const memoReposition = () => memoLayer!.render();
+    eventBus.on('document-layout-refreshed', memoRefresh);
+    eventBus.on('document-view-loaded', memoRefresh);
+    eventBus.on('document-swapped', memoRefresh);
+    eventBus.on('history-jumped', memoRefresh);
+    eventBus.on('memo-settings-changed', memoRefresh);
+    eventBus.on('zoom-changed', memoReposition);
+    eventBus.on('viewport-scroll', memoReposition);
+    eventBus.on('viewport-resize', () => window.setTimeout(memoReposition, 0));
+    memoStore.onChange(memoReposition);
     inputHandler.setTableResizeRenderer(
       new TableResizeRenderer(container, canvasView.getVirtualScroll()),
     );
@@ -847,6 +883,8 @@ async function initialize(): Promise<void> {
       }
       (window as any).__inputHandler = inputHandler;
       (window as any).__canvasView = canvasView;
+      (window as any).__memoStore = memoStore;
+      (window as any).__memoLayer = memoLayer;
       (window as any).__renderBackend = null;
       (window as any).__renderBackendRequest = renderBackendRequest;
       (window as any).__rendererRuntimeRequest = rendererRuntimeRequest;
