@@ -2,6 +2,7 @@ import type { EventBus } from '@/core/event-bus';
 import type { CommandDispatcher } from '@/command/dispatcher';
 import type { CommandRegistry } from '@/command/registry';
 import { syncMenuShortcutLabels } from './menu-shortcut-labels';
+import { t } from '../i18n/index.ts';
 
 /**
  * 메뉴바 드롭다운 컨트롤러
@@ -16,12 +17,20 @@ import { syncMenuShortcutLabels } from './menu-shortcut-labels';
 export interface MenuBarOptions {
   /** 드롭다운 메뉴가 열릴 때 호출 (동적 하위 항목 렌더 등). menuName = data-menu 값. */
   onMenuOpen?: (menuName: string, menuEl: HTMLElement) => void;
+  /**
+   * 한컴식 탭: 있으면 제목 클릭은 드롭다운 대신 이 콜백으로 도구 묶음을 고르고,
+   * 드롭다운은 제목 옆 ▾ 단추가 연다. `menuOnly` 에 든 메뉴(파일)는 제목이 곧 드롭다운이다.
+   */
+  onTitleSelect?: (menuName: string) => void;
+  menuOnly?: ReadonlySet<string>;
 }
 
 export class MenuBar {
   private menuItems: HTMLElement[];
   private openMenu: HTMLElement | null = null;
   private onMenuOpen?: (menuName: string, menuEl: HTMLElement) => void;
+  private onTitleSelect?: (menuName: string) => void;
+  private menuOnly: ReadonlySet<string>;
 
   constructor(
     private container: HTMLElement,
@@ -31,8 +40,11 @@ export class MenuBar {
     options: MenuBarOptions = {},
   ) {
     this.onMenuOpen = options.onMenuOpen;
+    this.onTitleSelect = options.onTitleSelect;
+    this.menuOnly = options.menuOnly ?? new Set();
     this.menuItems = Array.from(container.querySelectorAll('.menu-item'));
     syncMenuShortcutLabels(container, registry);
+    if (this.onTitleSelect) this.setupToggles();
     this.setupTitleClicks();
     this.setupTitleHover();
     this.setupItemClicks();
@@ -40,24 +52,72 @@ export class MenuBar {
     this.setupKeyboardClose();
   }
 
-  /** 메뉴 타이틀 클릭 → 드롭다운 토글 */
+  /** 메뉴 타이틀 클릭 → 드롭다운 토글 (탭 모드면 도구 묶음 고르기) */
   private setupTitleClicks(): void {
     for (const item of this.menuItems) {
       const title = item.querySelector('.menu-title') as HTMLElement;
       if (!title) continue;
       title.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        if (this.openMenu === item) {
+        const name = item.dataset.menu ?? '';
+        if (this.onTitleSelect && !this.menuOnly.has(name)) {
           this.closeAll();
-        } else {
-          this.openMenu?.classList.remove('open');
-          item.classList.add('open');
-          this.openMenu = item;
-          this.updateMenuStates(item);
-          this.onMenuOpen?.(item.dataset.menu ?? '', item);
+          this.onTitleSelect(name);
+          return;
         }
+        this.toggleMenu(item);
       });
     }
+  }
+
+  /** 탭 모드: 제목 옆 ▾ 단추가 세로 메뉴를 연다 */
+  private setupToggles(): void {
+    for (const item of this.menuItems) {
+      const title = item.querySelector('.menu-title') as HTMLElement;
+      const name = item.dataset.menu ?? '';
+      if (!title || this.menuOnly.has(name)) continue;
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'menu-toggle';
+      toggle.textContent = '▾';
+      toggle.setAttribute('aria-haspopup', 'menu');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', t('ui.menuBar.toggle.ariaLabel', { p1: (title.textContent ?? '').trim() }));
+      toggle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this.toggleMenu(item);
+      });
+      // 키보드(Enter/Space)는 mousedown 없이 click 만 온다
+      toggle.addEventListener('click', (e) => {
+        if ((e as MouseEvent).detail === 0) this.toggleMenu(item);
+      });
+      toggle.addEventListener('mouseenter', () => this.hoverSwitch(item));
+      title.after(toggle);
+      item.classList.add('has-toggle');
+    }
+  }
+
+  private toggleMenu(item: HTMLElement): void {
+    if (this.openMenu === item) {
+      this.closeAll();
+      return;
+    }
+    this.openMenu?.classList.remove('open');
+    this.setExpanded(this.openMenu, false);
+    item.classList.add('open');
+    this.setExpanded(item, true);
+    this.openMenu = item;
+    this.updateMenuStates(item);
+    this.onMenuOpen?.(item.dataset.menu ?? '', item);
+  }
+
+  private setExpanded(item: HTMLElement | null, expanded: boolean): void {
+    item?.querySelector('.menu-toggle')?.setAttribute('aria-expanded', String(expanded));
+  }
+
+  /** 드롭다운이 열려 있으면 hover 한 메뉴로 옮긴다 */
+  private hoverSwitch(item: HTMLElement): void {
+    if (this.openMenu && this.openMenu !== item) this.toggleMenu(item);
   }
 
   /** 열린 상태에서 다른 메뉴 hover → 자동 전환 */
@@ -65,15 +125,7 @@ export class MenuBar {
     for (const item of this.menuItems) {
       const title = item.querySelector('.menu-title') as HTMLElement;
       if (!title) continue;
-      title.addEventListener('mouseenter', () => {
-        if (this.openMenu && this.openMenu !== item) {
-          this.openMenu.classList.remove('open');
-          item.classList.add('open');
-          this.openMenu = item;
-          this.updateMenuStates(item);
-          this.onMenuOpen?.(item.dataset.menu ?? '', item);
-        }
-      });
+      title.addEventListener('mouseenter', () => this.hoverSwitch(item));
     }
   }
 
@@ -172,6 +224,7 @@ export class MenuBar {
 
   private closeAll(): void {
     this.openMenu?.classList.remove('open');
+    this.setExpanded(this.openMenu, false);
     this.openMenu = null;
   }
 }

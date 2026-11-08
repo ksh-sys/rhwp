@@ -83,6 +83,48 @@
   position: relative;
 }
 
+/* 한컴식 탭 (ribbon-tabs.ts): 제목은 도구 묶음을 고르고, 옆의 ▾ 가 세로 메뉴를 연다 */
+.menu-item.has-toggle {
+  display: inline-flex;
+  align-items: center;
+}
+
+.menu-item.has-toggle > .menu-title {
+  padding-right: 3px;
+}
+
+.menu-toggle {
+  width: 16px;
+  height: 20px;
+  margin-right: 6px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.menu-toggle:hover,
+.menu-toggle:focus-visible {
+  background: var(--ui-accent-bg);
+  border-color: var(--accent-hover);
+  color: var(--color-primary-dark);
+  outline: none;
+}
+
+.menu-item.open > .menu-toggle {
+  background: var(--ui-menu-open);
+  border-color: var(--ui-menu-open-border);
+  color: var(--ui-text-on-accent);
+}
+
+.menu-item.tab-active > .menu-title {
+  color: var(--color-primary-dark);
+  box-shadow: inset 0 -2px 0 var(--color-primary);
+}
+
 /* 드롭다운 패널 */
 .menu-dropdown {
   display: none;

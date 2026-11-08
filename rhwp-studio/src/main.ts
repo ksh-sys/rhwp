@@ -9,6 +9,7 @@ import { CanvasView } from '@/view/canvas-view';
 import { InputHandler } from '@/engine/input-handler';
 import { Toolbar } from '@/ui/toolbar';
 import { initIconToolbarScroller } from '@/ui/icon-toolbar-scroller';
+import { initRibbonTabs, MENU_ONLY_TABS } from '@/ui/ribbon-tabs';
 import { initStyleToolbarOverflow } from '@/ui/style-toolbar-overflow';
 import {
   closeToolbarSplitMenus,
@@ -705,10 +706,18 @@ async function initialize(): Promise<void> {
       new TableObjectRenderer(container, canvasView.getVirtualScroll(), true),
     );
 
+    const ribbonTabs = initRibbonTabs(
+      document.getElementById('menu-bar')!,
+      document.getElementById('icon-toolbar')!,
+      dispatcher,
+      eventBus,
+    );
     new MenuBar(document.getElementById('menu-bar')!, eventBus, dispatcher, registry, {
       onMenuOpen: (menuName) => {
         if (menuName === 'file') void renderRecentSubmenu();
       },
+      onTitleSelect: (menuName) => ribbonTabs.select(menuName),
+      menuOnly: MENU_ONLY_TABS,
     });
 
     // 툴바 내 data-cmd 버튼 클릭 → 커맨드 디스패치

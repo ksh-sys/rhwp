@@ -405,7 +405,8 @@
 
 .sb-bold { font-weight: bold; }
 .sb-italic { font-style: italic; }
-.sb-underline { text-decoration: underline; text-underline-offset: 2px; }
+/* 밑줄이 「가」에 붙으면 받침(간)처럼 읽혀 글자와 조금 띄운다 */
+.sb-underline { text-decoration: underline; text-underline-offset: 3px; }
 .sb-strike {
   position: relative;
 }

@@ -174,6 +174,75 @@
   }
 }
 
+.tb-scroll-viewport[hidden] {
+  display: none;
+}
+
+/* 탭 도구 묶음 (ribbon-tabs.ts) — 메뉴 항목에서 만든 큰 단추·작은 단추 */
+.tb-tab-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.tb-tab-panel[hidden] {
+  display: none;
+}
+
+.tb-stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
+.tb-small {
+  display: block;
+  height: 17px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  line-height: 15px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tb-small:hover {
+  background: var(--ui-hover-strong);
+  border-color: var(--ui-border-light);
+}
+
+.tb-tab-panel .active {
+  background: var(--ui-selected);
+  border-color: var(--ui-border-light);
+}
+
+.tb-tab-panel .disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.tb-tab-panel .disabled:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.tb-ribbon-popup {
+  display: block;
+  position: fixed;
+  z-index: 1000;
+}
+
 .tb-group {
   display: flex;
   align-items: stretch;
