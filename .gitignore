@@ -119,3 +119,6 @@ bindings/node/node_modules/
 
 # 실패 시 생성하는 폰트 공급 진단 SVG는 검토 산출물이다.
 /tests/golden_svg/**/*.actual.svg
+
+# 로컬 전용 시험 파일 (공개 저장소에 올리지 않는다)
+local-samples/
