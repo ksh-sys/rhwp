@@ -21,6 +21,9 @@ const useSubsecondWasm = process.env.RHWP_SUBSECOND === '1';
  */
 const withHwpctrl = process.env.RHWP_WITHOUT_HWPCTRL !== '1';
 
+/** 앱 설치(PWA) 범위 — RHWP_BASE 로 다른 경로에 둘 때 시작 주소·파일 열기도 그 경로를 따른다 */
+const pwaScope = process.env.RHWP_BASE || '/rhwp/';
+
 export default defineConfig({
   // 협회 배포는 /hwp-studio/ 아래에 둔다 — 자산 경로가 절대 '/'면 그 폴더에서 404 가 난다.
   // 환경변수로 받아 업스트림 기본값(루트 배포)은 그대로 둔다.
@@ -123,11 +126,11 @@ export default defineConfig({
         theme_color: '#2b6cb0',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/rhwp/',
-        scope: '/rhwp/',
+        start_url: pwaScope,
+        scope: pwaScope,
         file_handlers: [
           {
-            action: '/rhwp/',
+            action: pwaScope,
             accept: {
               'application/x-hwp': ['.hwp'],
               'application/hwp+zip': ['.hwpx'],
