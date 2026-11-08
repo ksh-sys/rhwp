@@ -67,7 +67,7 @@ test('셀 높이를 같게: 선택 줄의 높이 합을 고르게 나누고 그 
   const cells = grid([1000, 1000, 1000], [400, 1600, 1000]);
   // 1번 줄의 한 칸만 더 낮게 저장돼 있어도 줄 높이는 최댓값으로 본다
   cells[4].height = 900;
-  const after = apply(cells, buildEqualHeightUpdates(cells, { startRow: 0, startCol: 1, endRow: 1, endCol: 1 }));
+  const after = apply(cells, buildEqualHeightUpdates(cells, { startRow: 0, startCol: 1, endRow: 1, endCol: 1 }, [400, 1600, 1000]));
   for (const c of after.filter((x) => x.row <= 1)) assert.equal(c.height, 1000);
   for (const c of after.filter((x) => x.row === 2)) assert.equal(c.height, 1000);
 });
@@ -80,7 +80,7 @@ test('셀 높이를 같게: 세로 병합 셀은 걸친 줄 수만큼, 범위를
     { cellIdx: 3, row: 2, col: 0, rowSpan: 1, colSpan: 1, width: 1000, height: 700 },
     { cellIdx: 4, row: 2, col: 1, rowSpan: 1, colSpan: 1, width: 1000, height: 700 },
   ];
-  const after = apply(cells, buildEqualHeightUpdates(cells, { startRow: 0, startCol: 0, endRow: 1, endCol: 1 }));
+  const after = apply(cells, buildEqualHeightUpdates(cells, { startRow: 0, startCol: 0, endRow: 1, endCol: 1 }, [1000, 2000, 700]));
   assert.equal(after[0].height, 3000);
   assert.equal(after[1].height, 1500);
   assert.equal(after[2].height, 1500);
@@ -90,7 +90,18 @@ test('셀 높이를 같게: 세로 병합 셀은 걸친 줄 수만큼, 범위를
 test('한 칸·한 줄만 고르면 바꿀 것이 없다', () => {
   const cells = grid([1000, 2000], [500, 900]);
   assert.deepEqual(buildEqualWidthUpdates(cells, { startRow: 0, startCol: 0, endRow: 1, endCol: 0 }), []);
-  assert.deepEqual(buildEqualHeightUpdates(cells, { startRow: 0, startCol: 0, endRow: 0, endCol: 1 }), []);
+  assert.deepEqual(buildEqualHeightUpdates(cells, { startRow: 0, startCol: 0, endRow: 0, endCol: 1 }, [500, 900]), []);
+});
+
+test('셀 높이를 같게: 저장 높이가 화면보다 작은 새 표도 화면 높이 기준으로 고르게, 표 높이는 줄 합에 맞춤', () => {
+  // 새 표: 저장 282 인데 글자 한 줄 때문에 화면은 1360, 3번째 줄만 Ctrl+↓ 로 키움
+  const cells = grid([1000, 1000, 1000], [282, 282, 2682]);
+  const updates = buildEqualHeightUpdates(cells, { startRow: 0, startCol: 0, endRow: 2, endCol: 2 }, [1360, 1360, 2682]);
+  const after = apply(cells, updates);
+  const heights = [0, 1, 2].map((r) => after.find((c) => c.row === r)!.height);
+  assert.equal(heights.reduce((a, b) => a + b, 0), 1360 + 1360 + 2682);
+  assert.ok(Math.max(...heights) - Math.min(...heights) <= 1);
+  assert.ok(updates.every((u) => u.fitTableHeight === true));
 });
 
 test('F5 셀 블록에서 H/W(한글 자판 ㅗ/ㅈ 포함)는 높이/너비를 같게', () => {

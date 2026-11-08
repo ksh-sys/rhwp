@@ -23,6 +23,8 @@ import {
 import { showToast } from '@/ui/toast';
 
 const MIN_TABLE_CELL_SIZE_HWP = 200;
+/** 화면 px(96dpi) → HWPUNIT(1/7200 inch) */
+const HWPUNIT_PER_PX = 7200 / 96;
 
 function isOuterResizeEdge(self: any, edge: BorderEdge, pageBboxes: CellBbox[]): boolean {
   try {
@@ -911,10 +913,14 @@ export function equalizeSelectedCells(this: any, axis: 'width' | 'height'): bool
   const nestedPathJson = ctx.cellPath && ctx.cellPath.length > 1 ? JSON.stringify(ctx.cellPath) : undefined;
 
   let cells: CellGeometry[];
+  /** 줄마다 지금 화면 높이(HWPUNIT). 쪽 경계로 나뉜 셀은 조각 높이를 더한다. */
+  const renderedRowHeights: number[] = [];
   try {
     const bboxes: CellBbox[] = nestedPathJson
       ? this.wasm.getTableCellBboxesByPath(ctx.sec, ctx.ppi, nestedPathJson)
       : this.wasm.getTableCellBboxes(ctx.sec, ctx.ppi, ctx.ci);
+    const renderedPx = new Map<number, number>();
+    for (const b of bboxes) renderedPx.set(b.cellIdx, (renderedPx.get(b.cellIdx) ?? 0) + b.h);
     const seen = new Set<number>();
     cells = [];
     for (const b of bboxes) {
@@ -924,10 +930,26 @@ export function equalizeSelectedCells(this: any, axis: 'width' | 'height'): bool
         ? this.wasm.getCellPropertiesByPath(ctx.sec, ctx.ppi, nestedPathJson, b.cellIdx)
         : this.wasm.getCellProperties(ctx.sec, ctx.ppi, ctx.ci, b.cellIdx);
       cells.push({ ...b, width: props.width, height: props.height });
+      if (b.rowSpan === 1) {
+        const hu = (renderedPx.get(b.cellIdx) ?? b.h) * HWPUNIT_PER_PX;
+        renderedRowHeights[b.row] = Math.max(renderedRowHeights[b.row] ?? 0, hu);
+      }
     }
   } catch { return false; }
+  // 줄 병합 셀만 있는 줄은 그 줄 높이를 잴 수 없다 — 고르게 나누지 않는다
+  if (axis === 'height') {
+    let rowCount = 0;
+    try {
+      rowCount = (nestedPathJson
+        ? this.wasm.getTableDimensionsByPath(ctx.sec, ctx.ppi, nestedPathJson)
+        : this.wasm.getTableDimensions(ctx.sec, ctx.ppi, ctx.ci)).rowCount;
+    } catch { return false; }
+    if (renderedRowHeights.length !== rowCount || renderedRowHeights.some((h) => h === undefined)) return false;
+  }
 
-  const updates = axis === 'width' ? buildEqualWidthUpdates(cells, range) : buildEqualHeightUpdates(cells, range);
+  const updates = axis === 'width'
+    ? buildEqualWidthUpdates(cells, range)
+    : buildEqualHeightUpdates(cells, range, renderedRowHeights);
   if (updates.length === 0) return false;
   try {
     this.executeOperation({

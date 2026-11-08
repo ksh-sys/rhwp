@@ -17,6 +17,8 @@ export type LocalResizeUpdate = {
   cellIdx: number;
   widthDelta?: number;
   heightDelta?: number;
+  /** 표 높이를 줄 높이 합으로 다시 맞춘다 — 엔진이 표 높이 여유분을 보존하지 않게 한다 (셀 높이를 같게) */
+  fitTableHeight?: boolean;
 };
 
 /** Only pointer gestures that map to durable table geometry may own a drag. */
@@ -195,28 +197,32 @@ export function buildEqualWidthUpdates(cells: CellGeometry[], range: CellSelecti
 }
 
 /**
- * 셀 높이를 같게 (한컴 F5 블록 + H): 선택한 줄들의 높이 합을 줄 수로 고르게 다시 나눈다.
- * 줄 높이는 그 줄 셀 높이의 최댓값으로 그려지므로, 선택 칸만이 아니라 그 줄의 모든 셀을 맞춘다
- * — 일부 칸만 바꾸면 남은 칸이 줄을 붙잡아 화면이 바뀌지 않는다. 줄 높이를 잴 셀(줄 병합 아닌
- * 셀)이 없는 줄이 있으면 고르게 나눌 수 없어 아무것도 하지 않는다.
+ * 셀 높이를 같게 (한컴 F5 블록 + H): 선택한 줄들의 **화면 높이** 합을 줄 수로 고르게 다시 나눈다.
+ *
+ * 저장된 셀 높이로 계산하면 안 된다 — 새 표의 셀은 저장 높이(282)가 글자 한 줄 높이보다 작아
+ * 화면은 내용 높이로 그려지고, 표 높이(common.height)와 줄 높이 합의 차이(여유분)는 렌더러가
+ * 마지막 줄에 몰아준다(fit_row_heights_to_common_height). 그래서 모든 줄의 저장 높이를 지금 보이는
+ * 높이로 적고(선택 줄은 고르게 나눈 값), fitTableHeight 로 표 높이를 줄 합에 맞춰 여유분을 없앤다.
+ * 선택 밖 줄은 보이는 그대로 남는다. 줄 병합은 걸친 줄 높이의 합.
+ *
+ * @param renderedRowHeights 줄마다 지금 화면 높이(HWPUNIT, 표 전체 줄 수만큼)
  */
-export function buildEqualHeightUpdates(cells: CellGeometry[], range: CellSelectionRange): LocalResizeUpdate[] {
+export function buildEqualHeightUpdates(
+  cells: CellGeometry[],
+  range: CellSelectionRange,
+  renderedRowHeights: number[],
+): LocalResizeUpdate[] {
   const n = range.endRow - range.startRow + 1;
-  if (n < 2) return [];
-  const unique = uniqueGeometry(cells);
-  let total = 0;
-  for (let r = range.startRow; r <= range.endRow; r++) {
-    const heights = unique.filter((c) => c.row === r && c.rowSpan === 1).map((c) => c.height);
-    if (heights.length === 0) return [];
-    total += Math.max(...heights);
+  if (n < 2 || range.endRow >= renderedRowHeights.length) return [];
+  const target = renderedRowHeights.map((h) => Math.round(h));
+  const total = target.slice(range.startRow, range.endRow + 1).reduce((a, b) => a + b, 0);
+  for (let k = 0; k < n; k++) {
+    target[range.startRow + k] = equalEdge(total, n, k + 1) - equalEdge(total, n, k);
   }
   const updates: LocalResizeUpdate[] = [];
-  for (const c of unique) {
-    const last = c.row + c.rowSpan - 1;
-    if (c.row < range.startRow || last > range.endRow) continue;
-    const lo = c.row - range.startRow;
-    const height = equalEdge(total, n, lo + c.rowSpan) - equalEdge(total, n, lo);
-    if (height !== c.height) updates.push({ cellIdx: c.cellIdx, heightDelta: height - c.height });
+  for (const c of uniqueGeometry(cells)) {
+    const height = target.slice(c.row, c.row + c.rowSpan).reduce((a, b) => a + b, 0);
+    if (height !== c.height) updates.push({ cellIdx: c.cellIdx, heightDelta: height - c.height, fitTableHeight: true });
   }
   return updates;
 }

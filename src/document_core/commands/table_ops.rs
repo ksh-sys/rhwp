@@ -36,6 +36,9 @@ struct CellResizeUpdate {
     cell_idx: usize,
     width_delta: i32,
     height_delta: i32,
+    /// 표 높이를 줄 높이 합으로 다시 맞춘다(여유분 보존 안 함) — 셀 높이를 같게 전용.
+    /// 렌더러가 여유분을 마지막 줄에 몰아주므로, 줄 높이를 고르게 맞추려면 여유분이 없어야 한다.
+    fit_table_height: bool,
 }
 
 /// 행·열별 독립 셀 경계는 HWP/HWPX 에 편집 의도를 저장할 수 없다.
@@ -2222,7 +2225,9 @@ impl DocumentCore {
             }
         }
         table.update_ctrl_dimensions();
+        let fit_table_height = updates.iter().any(|u| u.fit_table_height);
         if updates.iter().any(|u| u.height_delta != 0)
+            && !fit_table_height
             && original_height > original_row_height_sum
             && table.row_count > 1
         {
@@ -2300,6 +2305,7 @@ impl DocumentCore {
                             cell_idx: cell_idx as usize,
                             width_delta,
                             height_delta,
+                            fit_table_height: json_bool(obj, "fitTableHeight") == Some(true),
                         });
                     }
                 }
