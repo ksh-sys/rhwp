@@ -1,3 +1,6 @@
+import { hwpSaveWarning, unreadableMemoCount } from '@/memo/memo-hwp-guard';
+import type { MemoEntry } from '@/memo/memo-types';
+import { showMemoHwpWarning } from '@/ui/memo-hwp-warning-dialog';
 import type { CommandDef, CommandServices } from '../types';
 import {
   buildHtmlExportFile,
@@ -305,9 +308,33 @@ async function promptSaveAsOptions(
   return { fileName: selection.fileName, password };
 }
 
+/**
+ * .hwp 로 저장하기 전 메모 손실 경고(설계서 §2.1). 엔진이 본문을 읽지 못한 메모(.hwp 출처)가 있으면
+ * 사용자에게 HWPX 저장을 권한다. 'hwpx' 면 호출부가 HWPX 저장으로 갈아탄다.
+ */
+async function guardHwpMemoLoss(services: CommandServices, format: SaveFormat): Promise<'proceed' | 'hwpx' | 'cancel'> {
+  if (format !== 'hwp') return 'proceed';
+  let entries: MemoEntry[] = [];
+  try {
+    entries = services.wasm.getMemoList();
+  } catch {
+    return 'proceed';
+  }
+  const count = unreadableMemoCount(entries);
+  const message = hwpSaveWarning(count, entries.length, t);
+  if (!message) return 'proceed';
+  return showMemoHwpWarning(message);
+}
+
 async function saveAsFormat(services: CommandServices, format: SaveFormat): Promise<void> {
   let password: string | null = null;
   try {
+    const guard = await guardHwpMemoLoss(services, format);
+    if (guard === 'cancel') return;
+    if (guard === 'hwpx') {
+      await saveAsFormat(services, 'hwpx');
+      return;
+    }
     const sourceFormat = services.wasm.getSourceFormat();
     const options = await promptSaveAsOptions(services, format);
     if (options === null) return;
@@ -396,6 +423,14 @@ export async function saveCurrentDocument(services: CommandServices): Promise<Sa
         forceSaveAs: target.forceSaveAs || format !== target.format,
         suggestedName: fileNameForFormat(services.wasm.fileName, format),
       };
+    }
+    {
+      const guard = await guardHwpMemoLoss(services, target.format);
+      if (guard === 'cancel') return 'cancelled';
+      if (guard === 'hwpx') {
+        await saveAsFormat(services, 'hwpx');
+        return 'cancelled';
+      }
     }
     if (services.wasm.requiresPasswordForSave) {
       const passwordFormat = requirePasswordSaveFormat(target.format);
