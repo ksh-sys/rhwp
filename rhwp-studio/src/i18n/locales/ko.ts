@@ -1822,6 +1822,7 @@ const catalog = {
   "menu.page.label.xb0333e": "꼬리말",
   "menu.page.label.xcf8117": "짝수 쪽",
   "menu.page.label.xf8c0bd": "홀수 쪽",
+  "menu.review": "검토",
   "menu.table": "표",
   "menu.table.label": "셀 테두리/배경",
   "menu.tool": "도구",

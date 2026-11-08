@@ -1822,6 +1822,7 @@ const catalog = {
   "menu.page.label.xb0333e": "Footer",
   "menu.page.label.xcf8117": "Even pages",
   "menu.page.label.xf8c0bd": "Odd pages",
+  "menu.review": "Review",
   "menu.table": "Table",
   "menu.table.label": "Cell Borders/Shading",
   "menu.tool": "Tools",

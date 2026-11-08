@@ -372,6 +372,21 @@
           <div class="md-item disabled" data-cmd="page:section-settings"><span class="md-icon"></span><span class="md-label" data-i18n="command.page.sectionSettings.label">구역 설정</span></div>
         </div>
       </div>
+      <!-- ── 검토 ── -->
+      <div class="menu-item" data-menu="review">
+        <span class="menu-title" data-i18n="menu.review">검토</span>
+        <div class="menu-dropdown">
+          <div class="md-item" data-cmd="edit:document-history"><span class="md-icon icon-history"></span><span class="md-label" data-i18n="command.edit.documentHistory.label">문서 이력 관리</span><span class="md-shortcut">Ctrl+Shift+H</span></div>
+          <div class="md-item" data-cmd="edit:compare-documents"><span class="md-icon icon-compare"></span><span class="md-label" data-i18n="command.edit.compareDocuments.label">문서 비교</span><span class="md-shortcut">Alt+Shift+V</span></div>
+        </div>
+      </div>
+      <!-- ── 도구 ── -->
+      <div class="menu-item" data-menu="tool">
+        <span class="menu-title" data-i18n="menu.tool">도구</span>
+        <div class="menu-dropdown">
+          <div class="md-item" data-cmd="tool:options"><span class="md-icon"></span><span class="md-label" data-i18n="command.tool.options.label">환경 설정</span></div>
+        </div>
+      </div>
       <!-- ── 표 ── -->
       <div class="menu-item" data-menu="table">
         <span class="menu-title" data-i18n="menu.table">표</span>
@@ -404,13 +419,6 @@
           <div class="md-item disabled" data-cmd="table:thousand-sep"><span class="md-icon"></span><span class="md-label" data-i18n="command.table.thousandSep.label">1,000 단위 구분 쉼표</span></div>
           <div class="md-item disabled" data-cmd="table:decimal-add"><span class="md-icon"></span><span class="md-label" data-i18n="command.table.decimalAdd.label">자릿점 넣기</span></div>
           <div class="md-item disabled" data-cmd="table:decimal-remove"><span class="md-icon"></span><span class="md-label" data-i18n="command.table.decimalRemove.label">자릿점 빼기</span></div>
-        </div>
-      </div>
-      <!-- ── 도구 ── -->
-      <div class="menu-item" data-menu="tool">
-        <span class="menu-title" data-i18n="menu.tool">도구</span>
-        <div class="menu-dropdown">
-          <div class="md-item" data-cmd="tool:options"><span class="md-icon"></span><span class="md-label" data-i18n="command.tool.options.label">환경 설정</span></div>
         </div>
       </div>
       <button type="button" id="toolbox-basic-toggle" class="menu-command menu-toolbox-toggle active" data-cmd="view:toolbox-basic" aria-controls="icon-toolbar" aria-expanded="true" aria-label="기본 도구 상자 접기" title="기본 도구 상자 접기 (Ctrl+F1)" data-i18n-aria-label="command.view.toolboxBasic.ariaLabel" data-i18n-title="command.view.toolboxBasic.tooltip"></button>

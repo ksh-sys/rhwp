@@ -163,11 +163,11 @@ test('main은 embed에서 문서 비교 표면을 등록·노출하지 않는다
   assert.match(mainSource, /EMBED_HIDDEN_EDIT_COMMAND_IDS/);
   // 런타임 정리는 숨김 커맨드를 참조하는 모든 표면을 data-cmd로 일괄 제거한다.
   assert.match(mainSource, /document\.querySelectorAll\(`\[data-cmd="\$\{id\}"\]`\)/);
-  // index.html은 수정하지 않는다 — full 프로파일의 세 표면(편집 메뉴·도구막대
-  // 버튼·split 메뉴 항목)이 그대로 남아 있어야 한다.
+  // index.html은 수정하지 않는다 — full 프로파일의 네 표면(편집 메뉴·검토 메뉴·도구막대
+  // 버튼·split 메뉴 항목)이 그대로 남아 있어야 한다. (탭 도구 묶음은 등록된 명령만 그린다)
   const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const surfaces = indexHtml.match(/data-cmd="edit:compare-documents"/g) ?? [];
-  assert.equal(surfaces.length, 3);
+  assert.equal(surfaces.length, 4);
 });
 
 test('embed 저장·인쇄 단축키 판정은 문서 로드 여부와 무관한 순수 함수다', () => {

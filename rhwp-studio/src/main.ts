@@ -711,6 +711,7 @@ async function initialize(): Promise<void> {
       document.getElementById('icon-toolbar')!,
       dispatcher,
       eventBus,
+      (id) => registry.has(id),
     );
     new MenuBar(document.getElementById('menu-bar')!, eventBus, dispatcher, registry, {
       onMenuOpen: (menuName) => {

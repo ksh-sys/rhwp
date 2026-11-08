@@ -186,7 +186,12 @@
   align-items: stretch;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
+  /* 넘칠 때는 휠로 좌우 이동(ribbon-tabs.ts) — 스크롤바가 56px 높이 안에서 글자를 가리지 않게 */
+  scrollbar-width: none;
+}
+
+.tb-tab-panel::-webkit-scrollbar {
+  display: none;
 }
 
 .tb-tab-panel[hidden] {
@@ -219,6 +224,44 @@
 .tb-small:hover {
   background: var(--ui-hover-strong);
   border-color: var(--ui-border-light);
+}
+
+.tb-small .tb-sprite {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+/* 보기 탭의 켜고 끄는 항목 — 한컴처럼 체크 상자 */
+.tb-check .tb-checkbox {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  margin-right: 5px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 2px;
+  background: var(--color-surface);
+  vertical-align: -1px;
+}
+
+.tb-tab-panel .tb-check.active {
+  background: transparent;
+  border-color: transparent;
+}
+
+.tb-check.active .tb-checkbox {
+  border-color: var(--color-primary);
+  background: var(--color-primary) no-repeat center / 9px 9px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.6 9.6 3.6' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.tb-glyph {
+  width: auto;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
 }
 
 .tb-tab-panel .active {
