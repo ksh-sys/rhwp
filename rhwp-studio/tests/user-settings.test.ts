@@ -529,3 +529,47 @@ test('skinChosen 도입 이전에 스킨을 고른 사용자는 첫 실행 안�
     (globalThis as { localStorage?: Storage }).localStorage = originalStorage;
   }
 });
+
+test('review 절은 기본값으로 채워지고 문자열·불리언이 정규화된다', () => {
+  const originalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+  const store = new Map<string, string>();
+  store.set('rhwp-settings', JSON.stringify({ review: { userName: 123, showMemos: 'x' } }));
+  const mockStorage = {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value);
+    },
+  } as Storage;
+  (globalThis as { localStorage?: Storage }).localStorage = mockStorage;
+  try {
+    userSettings.reload();
+    assert.deepEqual(userSettings.getReviewSettings(), {
+      userName: '',
+      showMemos: true,
+      showMemoGuides: true,
+      showMemoList: false,
+    });
+    userSettings.updateReviewSettings({ userName: '  홍길동 ' });
+    assert.equal(userSettings.getReviewSettings().userName, '홍길동');
+    const stored = JSON.parse(store.get('rhwp-settings') ?? '{}');
+    assert.equal(stored.review.userName, '홍길동');
+    assert.equal(stored.review.showMemos, true);
+  } finally {
+    (globalThis as { localStorage?: Storage }).localStorage = originalStorage;
+    userSettings.reload();
+  }
+});

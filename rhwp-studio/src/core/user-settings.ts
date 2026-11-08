@@ -94,6 +94,18 @@ export interface AutosaveSettings {
   idleDelaySeconds: number;
 }
 
+/** 검토(메모) 설정 */
+export interface ReviewSettings {
+  /** 메모 작성자로 쓰는 사용자 이름 (기기별 저장, 공백 trim) */
+  userName: string;
+  /** 메모 풍선 표시 */
+  showMemos: boolean;
+  /** 메모 안내선 표시 */
+  showMemoGuides: boolean;
+  /** 메모 내용 보기 창 표시 */
+  showMemoList: boolean;
+}
+
 /** 전체 설정 구조 */
 export interface AppSettings {
   version: number;
@@ -102,6 +114,7 @@ export interface AppSettings {
   dialog: DialogSettings;
   view: ViewSettings;
   autosave: AutosaveSettings;
+  review: ReviewSettings;
 }
 
 /** 언어 인덱스 상수 (HWP 7개 언어) */
@@ -182,7 +195,17 @@ function defaultSettings(): AppSettings {
       idleSaveEnabled: true,
       idleDelaySeconds: 10,
     },
+    review: {
+      userName: '',
+      showMemos: true,
+      showMemoGuides: true,
+      showMemoList: false,
+    },
   };
+}
+
+function normalizeUserName(value: unknown): string {
+  return typeof value === 'string' ? value.trim().slice(0, 40) : '';
 }
 
 /** 첫 실행 스킨 안내를 보여줄지 판단한다 (한 번도 직접 선택하지 않은 경우만). */
@@ -241,6 +264,7 @@ class UserSettingsService {
       const dialog: Partial<DialogSettings> = parsed.dialog ?? {};
       const view: Partial<ViewSettings> = parsed.view ?? {};
       const autosave: Partial<AutosaveSettings> = parsed.autosave ?? {};
+      const review: Partial<ReviewSettings> = parsed.review ?? {};
       // 저장값에 쪽 배치가 없으면 기본 설정을 쓴다 — 정규화의 폴백(`DEFAULT_PAGE_ARRANGEMENT`)
       // 은 손상된 값을 되살리는 용도이자 `setPageDimensions` 의 하위 호환 인자라, 새 사용자의
       // 기본 쪽 모양과는 뜻이 다르다. 두 갈래를 같은 상수로 묶으면 기본값을 바꿀 때 그리드
@@ -319,10 +343,38 @@ class UserSettingsService {
             600,
           ),
         },
+        review: {
+          userName: normalizeUserName(review.userName),
+          showMemos: normalizeBoolean(review.showMemos, defaults.review.showMemos),
+          showMemoGuides: normalizeBoolean(review.showMemoGuides, defaults.review.showMemoGuides),
+          showMemoList: normalizeBoolean(review.showMemoList, defaults.review.showMemoList),
+        },
       };
     } catch {
       return defaultSettings();
     }
+  }
+
+  /** 저장소에서 다시 읽는다 (시험·다른 탭 동기화용) */
+  reload(): void {
+    this.data = this.load();
+  }
+
+  /** 검토(메모) 설정 반환 */
+  getReviewSettings(): ReviewSettings {
+    return this.data.review;
+  }
+
+  /** 검토(메모) 설정 변경 — 사용자 이름은 trim·40자 */
+  updateReviewSettings(partial: Partial<ReviewSettings>): void {
+    const cur = this.data.review;
+    this.data.review = {
+      userName: partial.userName === undefined ? cur.userName : normalizeUserName(partial.userName),
+      showMemos: normalizeBoolean(partial.showMemos, cur.showMemos),
+      showMemoGuides: normalizeBoolean(partial.showMemoGuides, cur.showMemoGuides),
+      showMemoList: normalizeBoolean(partial.showMemoList, cur.showMemoList),
+    };
+    this.save();
   }
 
   save(): void {

@@ -1,7 +1,7 @@
 /**
  * 환경 설정 대화상자 (도구 > 환경 설정)
  *
- * 탭 구조: [글꼴] (향후 [편집], [보기] 등 탭 추가 가능)
+ * 탭 구조: [일반] [글꼴] [파일]
  */
 import { ModalDialog } from './dialog';
 import { userSettings } from '@/core/user-settings';
@@ -25,6 +25,7 @@ export class OptionsDialog extends ModalDialog {
   private idleSaveEnabledCheck!: HTMLInputElement;
   private idleDelayInput!: HTMLInputElement;
   private pdfPrintGuidanceCheck!: HTMLInputElement;
+  private userNameInput!: HTMLInputElement;
 
   constructor(private readonly eventBus?: EventBus) {
     super(i18nText('dialog.options.title'), 480);
@@ -38,8 +39,14 @@ export class OptionsDialog extends ModalDialog {
     const tabs = document.createElement('div');
     tabs.className = 'dialog-tabs';
 
+    const generalTab = document.createElement('button');
+    generalTab.className = 'dialog-tab active';
+    generalTab.textContent = i18nText('dialog.options.tabGeneral.text');
+    generalTab.dataset.tab = 'general';
+    tabs.appendChild(generalTab);
+
     const fontTab = document.createElement('button');
-    fontTab.className = 'dialog-tab active';
+    fontTab.className = 'dialog-tab';
     fontTab.textContent = i18nText('dialog.options.fontTab.text');
     fontTab.dataset.tab = 'font';
     tabs.appendChild(fontTab);
@@ -52,9 +59,15 @@ export class OptionsDialog extends ModalDialog {
 
     body.appendChild(tabs);
 
+    // 일반 탭 패널 — 사용자 이름(메모 작성자)
+    const generalPanel = this.createGeneralPanel();
+    generalPanel.className = 'dialog-tab-panel opt-tab-panel active';
+    generalPanel.dataset.tab = 'general';
+    body.appendChild(generalPanel);
+
     // 글꼴 탭 패널
     const fontPanel = this.createFontPanel();
-    fontPanel.className = 'dialog-tab-panel opt-tab-panel active';
+    fontPanel.className = 'dialog-tab-panel opt-tab-panel';
     fontPanel.dataset.tab = 'font';
     body.appendChild(fontPanel);
 
@@ -332,7 +345,33 @@ export class OptionsDialog extends ModalDialog {
     return panel;
   }
 
+  private createGeneralPanel(): HTMLElement {
+    const panel = document.createElement('div');
+    const section = document.createElement('div');
+    section.className = 'dialog-section';
+    const row = document.createElement('div');
+    row.className = 'dialog-row opt-row';
+    const label = document.createElement('label');
+    label.className = 'dialog-label';
+    label.htmlFor = 'opt-user-name';
+    label.textContent = i18nText('dialog.options.userName.label');
+    this.userNameInput = document.createElement('input');
+    this.userNameInput.type = 'text';
+    this.userNameInput.className = 'dialog-input';
+    this.userNameInput.id = 'opt-user-name';
+    this.userNameInput.maxLength = 40;
+    this.userNameInput.value = userSettings.getReviewSettings().userName;
+    row.append(label, this.userNameInput);
+    const hint = document.createElement('div');
+    hint.className = 'opt-desc';
+    hint.textContent = i18nText('dialog.options.userName.hint');
+    section.append(row, hint);
+    panel.appendChild(section);
+    return panel;
+  }
+
   protected onConfirm(): void {
+    userSettings.updateReviewSettings({ userName: this.userNameInput.value });
     const count = Math.min(5, Math.max(1, parseInt(this.recentCountInput.value) || 3));
     userSettings.updateFontSettings({
       showRecentFonts: this.showRecentCheck.checked,
