@@ -3,6 +3,12 @@ import type { GridViewSettings } from './grid-settings';
 
 const MM_TO_PX = 96 / 25.4;
 const CLIP_CORNER_LENGTH_PX = 10;
+/**
+ * 격자는 글자 뒤 안내선이라 글자보다 눈에 띄면 안 된다 — 한컴처럼 연한 회색으로 그린다.
+ * 점은 한 점이 1px 이라 같은 농도면 안 보이므로 선보다 조금 진하게 둔다.
+ */
+const GRID_LINE_COLOR = 'rgba(0, 0, 0, 0.16)';
+const GRID_DOT_OPACITY = 0.35;
 
 export function createGridOverlay(
   pageIdx: number,
@@ -65,7 +71,7 @@ export function createGridClipCornerOverlay(
 }
 
 function buildBackgroundImage(settings: GridViewSettings, zoom: number): string {
-  const color = 'rgba(0, 32, 150, 0.9)';
+  const color = GRID_LINE_COLOR;
   switch (settings.pattern) {
     case 'horizontal':
       return `linear-gradient(to bottom, ${color} 0, ${color} 1px, transparent 1px)`;
@@ -87,7 +93,7 @@ function buildDotTileImage(settings: GridViewSettings, zoom: number): string {
   const height = settings.verticalMm * MM_TO_PX * zoom;
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-    '<rect x="0" y="0" width="1" height="1" fill="#002096" fill-opacity="0.9"/>',
+    `<rect x="0" y="0" width="1" height="1" fill="#000000" fill-opacity="${GRID_DOT_OPACITY}"/>`,
     '</svg>',
   ].join('');
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
