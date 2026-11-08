@@ -28067,3 +28067,34 @@ fn issue_4576_rebuild_derived_state_recomputes_composition_and_pagination() {
         "페이지 트리가 기준선과 같아야 한다 (옛 코드 잔재 없음)"
     );
 }
+
+// ── 메모(검토 주석) wasm 래퍼 ──
+
+#[test]
+fn wasm_memo_insert_list_set_remove_roundtrip() {
+    let mut doc = create_editable_doc();
+    doc.insert_text_native(0, 0, 0, "가나다라마").unwrap();
+    let id = doc
+        .insert_memo_ex(
+            r#"{"target":{"section":0,"para":0,"cellPath":[]},"start":1,"end":3,"author":"홍길동","text":"확인","createdAt":"2026-11-08T14:00:00Z"}"#,
+        )
+        .expect("insertMemoEx");
+    let list: Vec<Value> = serde_json::from_str(&doc.get_memo_list()).unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0]["fieldId"], id);
+    assert_eq!(list[0]["text"], "확인");
+    assert!(doc
+        .set_memo_text_ex(&format!(
+            r#"{{"target":{{"section":0,"para":0,"cellPath":[]}},"fieldId":{id},"text":"수정"}}"#
+        ))
+        .expect("setMemoTextEx"));
+    let list: Vec<Value> = serde_json::from_str(&doc.get_memo_list()).unwrap();
+    assert_eq!(list[0]["text"], "수정");
+    doc.remove_memo_ex(&format!(
+        r#"{{"target":{{"section":0,"para":0,"cellPath":[]}},"fieldId":{id}}}"#
+    ))
+    .expect("removeMemoEx");
+    assert_eq!(doc.get_memo_list(), "[]");
+    // 알 수 없는 키 거부(deny_unknown_fields)는 JsValue 를 만들지 않는 wasm_api::memo 의
+    // 인라인 시험에서 본다 — 네이티브 cargo test 에서는 JsValue 생성이 panic 이다.
+}
