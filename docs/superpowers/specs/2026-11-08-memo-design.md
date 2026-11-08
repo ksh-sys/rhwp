@@ -72,7 +72,7 @@
 | `getMemoList()` | JSON 배열: `{fieldId, index, author, createdAt, text, page, anchorRects[{page,x,y,w,h}], location(본문/셀/머리말…)}` — 앵커 사각형은 `getSelectionRects` 계열과 같은 좌표계(HWPUNIT, 쪽 기준) |
 | `getMemoAtCursor()` | 캐럿이 메모 범위 안이면 fieldId |
 
-- 셀 안·머리말·각주 안의 메모는 **읽기·표시**는 하되, 이번 **넣기는 본문과 표 셀**까지만.
+- 넣기는 **본문과 표 셀(글상자 포함)**까지. 표시도 같은 범위다 — 머리말·꼬리말·각주 안의 메모와 여러 문단에 걸친 메모는 1차에서 **화면에 표시하지 않는다**(엔진 필드 순회가 그 영역을 다루지 않음). 파일에는 그대로 보존된다. 후속 과제.
 - **memoShape**: header에 `memoPr`을 **추가하지 않는다** — 사용자 제공 실측 파일(한글 13.0.0.2353, 2026-11-08)은 memoPr 없이 `MemoShapeIDRef=65535`만으로 메모를 저장하고 한글이 정상으로 연다. 화면 풍선 색은 한글 기본값(채움 `#CBFF99`, 활성 `#FDBCDD`, 선 `#A9A9A9`, 폭 15591 HWPUNIT)을 **스튜디오 상수**로 쓴다. 문서에 memoPr이 있고 필드가 그것을 가리키면 그 색을 쓴다.
 - **`fieldid`**: 한글은 MEMO 필드에 상수 `623209829`를 쓴다(aift.hwpx, 사용자 파일, 파서 시험 모두 동일). 새 메모도 이 값을 쓴다. `id`(fieldBegin)는 문서 내 고유 난수, command 토큰 3은 메모별 난수, 토큰 4는 문서 공통 난수(첫 메모 때 만들어 이후 재사용).
 - 메모 subList 문단의 `paraPrIDRef/styleIDRef/charPrIDRef`는 앵커 문단의 값을 따른다(한글 실측: 본문과 같은 스타일 id).
