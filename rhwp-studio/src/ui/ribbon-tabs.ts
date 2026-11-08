@@ -191,6 +191,15 @@ export const RIBBONS: Record<string, RibbonGroup[]> = {
   ],
   review: [
     [
+      { cmd: 'review:memo-insert', label: '메모\n넣기', icon: 'memo-insert' },
+      { cmd: 'review:memo-delete', label: '메모\n지우기', icon: 'memo-delete' },
+      { cmd: 'review:memo-prev', label: '이전', icon: 'chevron-left', small: true },
+      { cmd: 'review:memo-next', label: '다음', icon: 'chevron-right', small: true },
+      { cmd: 'review:memo-show', label: '메모 표시', check: true },
+      { cmd: 'review:memo-guide', label: '메모 안내선', check: true },
+      { cmd: 'review:memo-list', label: '메모 내용 보기', check: true },
+    ],
+    [
       { cmd: 'edit:document-history', label: '문서 이력\n관리', icon: 'history' },
       { cmd: 'edit:compare-documents', label: '문서\n비교', icon: 'compare' },
     ],

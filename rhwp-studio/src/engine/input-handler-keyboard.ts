@@ -549,6 +549,8 @@ const chordMapM: Record<string, string> = {
   ㄴ: 'page:hide', // 한글 IME
   m: 'insert:equation',
   ㅡ: 'insert:equation', // 한글 IME
+  c: 'review:memo-insert', // 한컴 Ctrl+N,C(메모 넣기) — Ctrl+M 계열로 이관
+  ㅊ: 'review:memo-insert', // 한글 IME
 };
 
 /** 코드 단축키 → 커맨드 ID 매핑 (Alt+V,? 형태 — 보기 메뉴) */
@@ -837,6 +839,7 @@ export function onKeyDown(this: any, e: KeyboardEvent): void {
       const codeToKey: Record<string, string> = {
         KeyM: 'm', KeyN: 'n', KeyS: 's', KeyF: 'f', KeyK: 'k',
         KeyA: 'a', KeyZ: 'z', // 표 나누기/붙이기 (Ctrl+M,A / Ctrl+M,Z)
+        KeyC: 'c', // 메모 넣기 (Ctrl+M,C)
       };
       const key = codeToKey[e.code];
       if (key && this.dispatcher) {

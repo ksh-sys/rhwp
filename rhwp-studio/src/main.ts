@@ -1,3 +1,5 @@
+import { reviewCommands, syncMemoMenu } from '@/command/commands/review';
+import { setMemoServices } from './memo/memo-services.ts';
 import { MemoStore } from './memo/memo-store.ts';
 import { MemoLayer } from './memo/memo-layer.ts';
 import { getRightBandAt100 } from '@/view/page-band';
@@ -351,6 +353,7 @@ registry.registerAll(
     : editCommands,
 );
 registry.registerAll(viewCommands);
+registry.registerAll(reviewCommands);
 registry.registerAll(formatCommands);
 registry.registerAll(insertCommands);
 registry.registerAll(tableCommands);
@@ -717,6 +720,12 @@ async function initialize(): Promise<void> {
         height: container.clientHeight,
       }),
       onActivate: (id) => memoStore!.setActive(id),
+      onEditText: (entry, text) => {
+        if (inputHandler?.updateMemoText(entry, text)) memoStore!.refresh();
+      },
+      onDelete: (entry) => {
+        if (inputHandler?.removeMemo(entry)) memoStore!.refresh();
+      },
       requestRelayout: () => {
         const size = canvasView!.getViewportManager().getViewportSize();
         eventBus.emit('viewport-resize', size.width, size.height);
@@ -736,6 +745,12 @@ async function initialize(): Promise<void> {
     eventBus.on('viewport-scroll', memoReposition);
     eventBus.on('viewport-resize', () => window.setTimeout(memoReposition, 0));
     memoStore.onChange(memoReposition);
+    setMemoServices({ store: memoStore, layer: memoLayer });
+    syncMemoMenu();
+    eventBus.on('memo-activate', (id) => {
+      memoLayer!.render();
+      requestAnimationFrame(() => memoLayer!.focusBalloon(id as number));
+    });
     inputHandler.setTableResizeRenderer(
       new TableResizeRenderer(container, canvasView.getVirtualScroll()),
     );

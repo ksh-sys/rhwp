@@ -40,6 +40,8 @@ import type { CellBbox, CellPathLike } from '@/core/types';
 import { showConfirm } from '@/ui/confirm-dialog';
 import * as _mouse from './input-handler-mouse';
 import * as _table from './input-handler-table';
+import * as _memo from './input-handler-memo';
+import type { MemoEntry } from '@/memo/memo-types';
 import * as _keyboard from './input-handler-keyboard';
 import * as _text from './input-handler-text';
 import * as _picture from './input-handler-picture';
@@ -1431,6 +1433,26 @@ export class InputHandler {
   /** 셀 블록의 너비/높이를 같게 (table:cell-width-equal·cell-height-equal) */
   equalizeSelectedCells(axis: 'width' | 'height'): boolean {
     return _table.equalizeSelectedCells.call(this, axis);
+  }
+
+  /** 메모(검토 주석) — 현재 선택(없으면 캐럿 낱말)에 빈 메모를 단다 */
+  insertMemoAtSelection(author: string, createdAt: string): _memo.InsertMemoResult {
+    return _memo.insertMemoAtSelection.call(this, author, createdAt);
+  }
+
+  /** 메모 본문 교체 (실행 취소 1단계) */
+  updateMemoText(entry: MemoEntry, text: string): boolean {
+    return _memo.updateMemoText.call(this, entry, text);
+  }
+
+  /** 메모 삭제 — 대상 글자는 남는다 */
+  removeMemo(entry: MemoEntry): boolean {
+    return _memo.removeMemo.call(this, entry);
+  }
+
+  /** 본문·표 셀·글상자 글자 위인가(머리말·각주·개체 선택 아님) — 메모 넣기 가능 조건 */
+  isCaretInEditableBody(): boolean {
+    return this.canEditHyperlink();
   }
 
   private resizeTableProportional(key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {

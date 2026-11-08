@@ -462,3 +462,8 @@ function describeLocalFontDetectionError(error: unknown): string {
   }
   return '글꼴 감지에 실패했습니다. 웹 대체 글꼴로 계속 사용할 수 있습니다.';
 }
+
+/** 토스트 등 비차단 UI 에서 환경 설정을 여는 진입점 — 명령 정의 밖에 두어 자동화 정책 원장과 분리한다. */
+export function openOptionsDialog(eventBus?: EventBus): void {
+  new OptionsDialog(eventBus).show();
+}
