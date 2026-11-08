@@ -86,24 +86,32 @@ impl DocumentCore {
             let anchor = self.hyperlink_paragraph(target)?;
             crate::model::hyperlink_format::OriginalFormat::capture(anchor, char_shapes, start, end)
         };
-        self.insert_range_field_native(target, start, end, |field_id, _anchor| Field {
-            field_type: FieldType::Hyperlink,
-            command,
-            ctrl_id: tags::FIELD_HYPERLINK,
-            field_id,
-            hyperlink_format: original_format.map(Box::new),
-            ..Default::default()
-        })
+        self.insert_range_field_native(
+            target,
+            start,
+            end,
+            |field_id, _anchor| Field {
+                field_type: FieldType::Hyperlink,
+                command,
+                ctrl_id: tags::FIELD_HYPERLINK,
+                field_id,
+                hyperlink_format: original_format.map(Box::new),
+                ..Default::default()
+            },
+            hyperlink_event,
+        )
     }
 
     /// 범위 필드 삽입 공통 경로(하이퍼링크·메모). 검증·겹침 거부·field_id 채번·8유닛 마커
-    /// 축 이동·controls/field_ranges 삽입·커밋까지. `build(field_id, anchor)`가 필드 본체를 만든다.
+    /// 축 이동·controls/field_ranges 삽입·커밋까지. `build(field_id, anchor)`가 필드 본체를,
+    /// `event_of(target, field_id)`가 이벤트 로그 항목을 만든다.
     pub(crate) fn insert_range_field_native(
         &mut self,
         target: &FieldTarget,
         start: usize,
         end: usize,
         build: impl FnOnce(u32, &Paragraph) -> Field,
+        event_of: fn(&FieldTarget, u32) -> DocumentEvent,
     ) -> Result<u32, HwpError> {
         self.validate_hyperlink_paragraph(target)?;
         let mut candidate = self.hyperlink_paragraph(target)?.clone();
@@ -169,7 +177,7 @@ impl DocumentCore {
         candidate
             .field_ranges
             .sort_by_key(|r| (r.start_char_idx, r.control_idx));
-        self.commit_field_paragraph(target, candidate, hyperlink_event(target, field_id))?;
+        self.commit_field_paragraph(target, candidate, event_of(target, field_id))?;
         Ok(field_id)
     }
 
@@ -322,18 +330,25 @@ impl DocumentCore {
         field_id: u32,
         restore_format: bool,
     ) -> Result<(), HwpError> {
-        self.remove_range_field_inner(target, field_id, restore_format, |f| {
-            f.field_type == FieldType::Hyperlink
-        })
+        self.remove_range_field_inner(
+            target,
+            field_id,
+            restore_format,
+            |f| f.field_type == FieldType::Hyperlink,
+            hyperlink_event,
+        )
     }
 
     /// 범위 필드의 마커만 걷어내고 글자는 남긴다(하이퍼링크·메모 공통). 글자 서식은 건드리지 않는다.
+    /// `accept` 가 참인 필드만 대상이고, `event_of` 가 이벤트 로그 항목을 만든다.
     pub(crate) fn remove_range_field_keep_text_native(
         &mut self,
         target: &FieldTarget,
         field_id: u32,
+        accept: impl Fn(&Field) -> bool,
+        event_of: fn(&FieldTarget, u32) -> DocumentEvent,
     ) -> Result<(), HwpError> {
-        self.remove_range_field_inner(target, field_id, false, |_| true)
+        self.remove_range_field_inner(target, field_id, false, accept, event_of)
     }
 
     fn remove_range_field_inner(
@@ -342,6 +357,7 @@ impl DocumentCore {
         field_id: u32,
         restore_format: bool,
         accept: impl Fn(&Field) -> bool,
+        event_of: fn(&FieldTarget, u32) -> DocumentEvent,
     ) -> Result<(), HwpError> {
         self.validate_hyperlink_paragraph(target)?;
         let mut candidate = self.hyperlink_paragraph(target)?.clone();
@@ -390,7 +406,7 @@ impl DocumentCore {
             })?;
         }
         self.rebuild_resolved_styles();
-        self.commit_field_paragraph(target, candidate, hyperlink_event(target, field_id))?;
+        self.commit_field_paragraph(target, candidate, event_of(target, field_id))?;
         Ok(())
     }
 
@@ -440,7 +456,7 @@ impl DocumentCore {
         Ok((paragraphs, para_idx))
     }
 
-    fn validate_hyperlink_paragraph(&self, target: &HyperlinkTarget) -> Result<(), HwpError> {
+    pub(crate) fn validate_hyperlink_paragraph(&self, target: &HyperlinkTarget) -> Result<(), HwpError> {
         let p = self.hyperlink_paragraph(target)?;
         if p.field_ranges.iter().any(|r| {
             r.start_char_idx > r.end_char_idx
@@ -557,7 +573,7 @@ fn find_link(p: &Paragraph, id: u32) -> Result<(usize, usize), HwpError> {
 }
 
 /// field_id 가 같고 `accept` 를 만족하는 범위 필드의 (field_ranges 인덱스, controls 인덱스).
-fn find_field(
+pub(crate) fn find_field(
     p: &Paragraph,
     id: u32,
     accept: impl Fn(&Field) -> bool,

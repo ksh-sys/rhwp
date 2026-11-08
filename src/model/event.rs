@@ -67,6 +67,14 @@ pub enum DocumentEvent {
         field_id: u32,
     },
 
+    /// 메모(검토 주석) 넣기·내용 변경·삭제 — 본문 텍스트는 보존된다.
+    MemoChanged {
+        section: usize,
+        para: usize,
+        cell_path: Vec<(usize, usize, usize)>,
+        field_id: u32,
+    },
+
     // ── 서식 변경 ──
     CharFormatChanged {
         section: usize,
@@ -186,6 +194,14 @@ impl DocumentEvent {
                 cell_path,
                 field_id,
             } => serde_json::json!({ "type": "HyperlinkChanged", "section": section,
+                    "para": para, "cellPath": cell_path, "fieldId": field_id })
+            .to_string(),
+            DocumentEvent::MemoChanged {
+                section,
+                para,
+                cell_path,
+                field_id,
+            } => serde_json::json!({ "type": "MemoChanged", "section": section,
                     "para": para, "cellPath": cell_path, "fieldId": field_id })
             .to_string(),
             DocumentEvent::TemplateFilled {

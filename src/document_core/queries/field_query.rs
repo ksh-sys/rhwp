@@ -2233,7 +2233,7 @@ pub(crate) fn write_ctrl_data_name(
 }
 
 /// FieldLocation을 JSON으로 변환
-fn field_location_json(loc: &FieldLocation) -> String {
+pub(crate) fn field_location_json(loc: &FieldLocation) -> String {
     if loc.nested_path.is_empty() {
         format!(
             "{{\"sectionIndex\":{},\"paraIndex\":{}}}",
@@ -2259,7 +2259,7 @@ fn field_location_json(loc: &FieldLocation) -> String {
     }
 }
 
-fn para_at_location<'a>(core: &'a DocumentCore, location: &FieldLocation) -> Option<&'a Paragraph> {
+pub(crate) fn para_at_location<'a>(core: &'a DocumentCore, location: &FieldLocation) -> Option<&'a Paragraph> {
     let mut para = core
         .document
         .sections
@@ -2303,7 +2303,7 @@ fn para_at_location<'a>(core: &'a DocumentCore, location: &FieldLocation) -> Opt
     Some(para)
 }
 
-fn field_range_bounds(core: &DocumentCore, fi: &FieldInfo) -> Option<(usize, usize)> {
+pub(crate) fn field_range_bounds(core: &DocumentCore, fi: &FieldInfo) -> Option<(usize, usize)> {
     let para = para_at_location(core, &fi.location)?;
     let range = para.field_ranges.get(fi.field_range_index)?;
     Some((range.start_char_idx, range.end_char_idx))
