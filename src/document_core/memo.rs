@@ -69,6 +69,8 @@ impl DocumentCore {
         let number = self.next_memo_index();
         let doc_token = self.memo_doc_token();
         let memo_token = random_token(number);
+        let author = sanitize_author(author);
+        let author = author.as_str();
         let command = format!("MEMO/{MEMO_SHAPE_NONE}/{number}/{memo_token}/{doc_token}/{author}/\\;;");
         let parameters = memo_parameters(&command, number, author, Some(created_at));
         self.insert_range_field_native(
@@ -179,6 +181,16 @@ fn memo_parameters(command: &str, number: u32, author: &str, created_at: Option<
         name: Some(String::new()),
         items,
     }
+}
+
+/// 작성자 이름 정제 — command 토큰 구분자(`/`)·종결자(`\;;`)에 쓰이는 `/ ; \` 와 제어문자를 공백으로.
+/// 그대로 두면 한글이 토큰 5(작성자)를 잘못 읽거나 command 파싱을 포기할 수 있다.
+fn sanitize_author(author: &str) -> String {
+    let cleaned: String = author
+        .chars()
+        .map(|c| if matches!(c, '/' | ';' | '\\') || c.is_control() { ' ' } else { c })
+        .collect();
+    cleaned.trim().to_string()
 }
 
 /// 메모 본문 문단 — 앵커(또는 기존 본문) 문단의 문단모양·스타일·글자모양을 물려받는다.
@@ -423,6 +435,37 @@ mod tests {
         assert_eq!(list[0]["author"], AUTHOR);
         assert_eq!(list[0]["createdAt"], WHEN);
         assert_eq!(list[0]["location"]["paraIndex"], 0);
+    }
+
+    #[test]
+    fn author_separators_are_sanitized_in_command_and_parameter() {
+        let mut core = blank("가나다라마");
+        core.insert_memo_native(&FieldTarget::body(0, 0), 1, 3, r"홍/길;동\x", "x", WHEN)
+            .unwrap();
+        let f = body_field(&core)[0];
+        let tokens: Vec<&str> = f.command.split('/').collect();
+        // MEMO / 65535 / 번호 / 메모난수 / 문서난수 / 작성자 / \;;  → 정확히 7 토큰
+        assert_eq!(tokens.len(), 7, "{}", f.command);
+        assert_eq!(tokens[5], "홍 길 동 x");
+        assert_eq!(string_param(f, "Author"), Some("홍 길 동 x"));
+        assert_eq!(memo_list(&core)[0]["author"], "홍 길 동 x");
+    }
+
+    #[test]
+    fn hwp_roundtrip_keeps_memo_anchor_as_unreadable() {
+        // HWP5 는 MEMO_LIST 를 쓰지만 파서가 본문을 읽지 않는다(설계서 §2.1) — 앵커·작성자만 남고 readable=false
+        let mut core = blank("가나다라마");
+        core.insert_memo_native(&FieldTarget::body(0, 0), 1, 3, AUTHOR, "본문", WHEN)
+            .unwrap();
+        let bytes = core.export_hwp_native().unwrap();
+        let again = DocumentCore::from_bytes(&bytes).unwrap();
+        let list = memo_list(&again);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0]["readable"], false);
+        assert_eq!(list[0]["author"], AUTHOR);
+        assert_eq!(list[0]["startCharIdx"], 1);
+        assert_eq!(list[0]["endCharIdx"], 3);
+        assert_eq!(again.document().sections[0].paragraphs[0].text, "가나다라마");
     }
 
     #[test]
