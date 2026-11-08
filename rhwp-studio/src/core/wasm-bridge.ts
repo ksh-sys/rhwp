@@ -1,3 +1,4 @@
+import type { FieldTargetJson, MemoEntry } from '../memo/memo-types.ts';
 import init, { HwpDocument, version } from '@wasm/rhwp.js';
 import { CanvasMetricSession, withPortableMetrics } from './canvas-metric-session';
 import { HostCanvasFontSession, scopedHostCanvasFont, withHostCanvasFonts } from './host-canvas-fonts';
@@ -3545,6 +3546,39 @@ export class WasmBridge {
   navigateHeaderFooterByPage(currentPage: number, isHeader: boolean, direction: number): { ok: boolean; pageIndex?: number; sectionIdx?: number; isHeader?: boolean; applyTo?: number } {
     if (!this.doc) throw new Error('문서가 로드되지 않았습니다');
     return JSON.parse(this.doc.navigateHeaderFooterByPage(currentPage, isHeader, direction));
+  }
+
+  // ─── 메모(검토 주석) API ──────────────────────────────────
+
+  /** 선택 범위에 메모를 단다 → 새 fieldId. 실패는 throw(엔진 메시지). */
+  insertMemo(opts: {
+    target: FieldTargetJson;
+    start: number;
+    end: number;
+    author: string;
+    text: string;
+    createdAt: string;
+  }): number {
+    if (!this.doc) throw new Error('문서가 로드되지 않았습니다');
+    return (this.doc as any).insertMemoEx(JSON.stringify(opts));
+  }
+
+  /** 메모 본문을 바꾼다 → 바뀌었으면 true */
+  updateMemoText(opts: { target: FieldTargetJson; fieldId: number; text: string }): boolean {
+    if (!this.doc) throw new Error('문서가 로드되지 않았습니다');
+    return (this.doc as any).setMemoTextEx(JSON.stringify(opts));
+  }
+
+  /** 메모를 지운다(대상 글자는 남는다) */
+  removeMemo(opts: { target: FieldTargetJson; fieldId: number }): void {
+    if (!this.doc) throw new Error('문서가 로드되지 않았습니다');
+    (this.doc as any).removeMemoEx(JSON.stringify(opts));
+  }
+
+  /** 문서의 메모 목록(본문·표 셀·글상자, 문서 순) */
+  getMemoList(): MemoEntry[] {
+    if (!this.doc) throw new Error('문서가 로드되지 않았습니다');
+    return JSON.parse((this.doc as any).getMemoList());
   }
 
   // ─── 필드 API (Task 230) ─────────────────────────────────
