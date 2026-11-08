@@ -1,6 +1,6 @@
 import { MemoPane } from './memo/memo-pane.ts';
 import type { MemoEntry } from './memo/memo-types.ts';
-import { collapsedMemos, positionToMemoLocation } from './memo/memo-collapse.ts';
+import { collapsedMemos, collapsedMemosToRemove, positionToMemoLocation } from './memo/memo-collapse.ts';
 import { reviewCommands, syncMemoMenu } from '@/command/commands/review';
 import { setMemoServices } from './memo/memo-services.ts';
 import { MemoStore } from './memo/memo-store.ts';
@@ -747,15 +747,28 @@ async function initialize(): Promise<void> {
         eventBus.emit('viewport-resize', size.width, size.height);
       },
     });
-    const memoRefresh = () => {
-      const entries = memoStore!.refresh();
-      // 앵커 글자가 모두 지워진 메모는 함께 지운다(설계서 §3.3) — 삭제는 별도 snapshot 이라 되돌릴 수 있다
-      const collapsed = collapsedMemos(entries);
-      if (collapsed.length > 0 && inputHandler) {
+    // 실행 취소/다시 실행으로 되살아난 붕괴(범위 0) 메모의 id — 다시 자동 삭제하면 redo 가 비고 이력이 쌓인다(검토 C1).
+    // 범위가 다시 생기거나 메모가 사라지면 보호를 푼다.
+    const memoProtectedIds = new Set<number>();
+    let memoCollapseTimer: number | null = null;
+    const scheduleCollapseRemoval = () => {
+      if (memoCollapseTimer !== null) window.clearTimeout(memoCollapseTimer);
+      // 이벤트 핸들러 안에서 바로 문서를 바꾸지 않는다(재진입) + IME 지우기→넣기 사이의 일시적 0 범위를 건너뛴다
+      memoCollapseTimer = window.setTimeout(() => {
+        memoCollapseTimer = null;
+        if (!inputHandler || !memoStore) return;
+        const entries = memoStore.entries;
+        for (const id of [...memoProtectedIds]) {
+          const cur = entries.find((m) => m.fieldId === id);
+          if (!cur || cur.startCharIdx < cur.endCharIdx) memoProtectedIds.delete(id);
+        }
+        const composing = Boolean((inputHandler as unknown as { isComposing?: () => boolean }).isComposing?.());
+        const targets = collapsedMemosToRemove(entries, { protectedIds: memoProtectedIds, composing });
+        if (targets.length === 0) return;
         let removed = 0;
-        for (const m of collapsed) if (inputHandler.removeMemo(m)) removed += 1;
+        for (const m of targets) if (inputHandler.removeMemo(m)) removed += 1;
         if (removed > 0) {
-          memoStore!.refresh();
+          memoStore.refresh();
           const sb = document.getElementById('sb-message');
           if (sb) {
             const prev = sb.textContent;
@@ -765,16 +778,29 @@ async function initialize(): Promise<void> {
             }, 4000);
           }
         }
-      }
+      }, 400);
+    };
+    const memoRefresh = () => {
+      memoLayer!.invalidateRects();
+      const entries = memoStore!.refresh();
+      if (collapsedMemos(entries).length > 0) scheduleCollapseRemoval();
       memoLayer!.render();
     };
     const memoReposition = () => memoLayer!.render();
     eventBus.on('document-layout-refreshed', memoRefresh);
     eventBus.on('document-view-loaded', memoRefresh);
     eventBus.on('document-swapped', memoRefresh);
-    eventBus.on('history-jumped', memoRefresh);
+    eventBus.on('history-jumped', () => {
+      // 되돌리기/다시 실행 직후 범위 0 으로 되살아난 메모는 자동 삭제 대상에서 보호한다
+      memoLayer!.invalidateRects();
+      for (const m of collapsedMemos(memoStore!.refresh())) memoProtectedIds.add(m.fieldId);
+      memoLayer!.render();
+    });
     eventBus.on('memo-settings-changed', memoRefresh);
-    eventBus.on('zoom-changed', memoReposition);
+    eventBus.on('zoom-changed', () => {
+      memoLayer!.invalidateRects();
+      memoReposition();
+    });
     eventBus.on('viewport-scroll', memoReposition);
     eventBus.on('viewport-resize', () => window.setTimeout(memoReposition, 0));
     memoStore.onChange(memoReposition);

@@ -204,8 +204,11 @@ function defaultSettings(): AppSettings {
   };
 }
 
+/** 메모 command 토큰(`MEMO/…/<작성자>/\\;;`)을 깨뜨리는 `/ ; \\` 와 제어문자는 공백으로 */
 function normalizeUserName(value: unknown): string {
-  return typeof value === 'string' ? value.trim().slice(0, 40) : '';
+  if (typeof value !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[/;\\\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 40);
 }
 
 /** 첫 실행 스킨 안내를 보여줄지 판단한다 (한 번도 직접 선택하지 않은 경우만). */

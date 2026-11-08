@@ -12,6 +12,19 @@ export function collapsedMemos(entries: readonly MemoEntry[]): MemoEntry[] {
   return entries.filter((m) => m.startCharIdx >= m.endCharIdx);
 }
 
+export interface CollapseRemovalState {
+  /** 실행 취소/다시 실행으로 되살아난 붕괴 메모 — 다시 자동 삭제하면 redo 스택이 비고 이력이 무한히 쌓인다 */
+  protectedIds: ReadonlySet<number>;
+  /** IME 조합 중에는 지우기→넣기 사이에 범위가 잠시 0 이 된다 — 건드리지 않는다 */
+  composing: boolean;
+}
+
+/** 지금 자동 삭제해도 되는 붕괴 메모 */
+export function collapsedMemosToRemove(entries: readonly MemoEntry[], state: CollapseRemovalState): MemoEntry[] {
+  if (state.composing) return [];
+  return collapsedMemos(entries).filter((m) => !state.protectedIds.has(m.fieldId));
+}
+
 /** DocumentPosition → `getMemoList` 의 location 모양(본문·셀·중첩 셀·글상자) */
 export function positionToMemoLocation(pos: DocumentPosition): MemoLocation {
   if (pos.parentParaIndex === undefined) {

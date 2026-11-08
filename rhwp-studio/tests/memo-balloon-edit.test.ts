@@ -24,3 +24,12 @@ test('캐럿 이동 시 그 자리의 메모를 활성화하고, 풍선/밑줄 �
   assert.match(main, /collapsedMemos/);
   assert.match(main, /moveCursorTo/);
 });
+
+test('앵커 사각형은 캐시하고 배치·배율·문서 변경 때만 비운다; 풍선 높이는 폭을 준 뒤 잰다', () => {
+  const src = read('src/memo/memo-layer.ts');
+  assert.match(src, /rectCache/);
+  assert.match(src, /invalidateRects\(\)/);
+  assert.match(src, /el\.style\.width = `\$\{widthPx\}px`;[\s\S]{0,300}autoGrow\(/);
+  const main = read('src/main.ts');
+  assert.match(main, /document-layout-refreshed[\s\S]{0,200}invalidateRects|invalidateRects[\s\S]{0,400}document-layout-refreshed/);
+});

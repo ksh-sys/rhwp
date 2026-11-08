@@ -46,6 +46,8 @@ export class MemoLayer {
   private readonly balloons = new Map<number, HTMLDivElement>();
   private anchorEls: HTMLDivElement[] = [];
   private lastBand100 = -1;
+  /** fieldId → 앵커 사각형(쪽 기준 px). 스크롤마다 wasm 을 다시 묻지 않도록 배치·배율·문서 변경 때만 비운다 */
+  private readonly rectCache = new Map<number, AnchorRect[]>();
   private readonly container: HTMLElement;
   private readonly virtualScroll: VirtualScroll;
   private readonly store: MemoStore;
@@ -106,8 +108,16 @@ export class MemoLayer {
     const visibleSet = new Set(visible);
     const anchors = new Map<number, AnchorRect[]>();
     for (const m of entries) {
-      const rects = this.rectsFor(m).filter((r) => visibleSet.has(r.pageIndex));
+      let all = this.rectCache.get(m.fieldId);
+      if (!all) {
+        all = this.rectsFor(m);
+        this.rectCache.set(m.fieldId, all);
+      }
+      const rects = all.filter((r) => visibleSet.has(r.pageIndex));
       if (rects.length > 0) anchors.set(m.fieldId, rects);
+    }
+    for (const id of [...this.rectCache.keys()]) {
+      if (!entries.some((m) => m.fieldId === id)) this.rectCache.delete(id);
     }
 
     // 1차: 풍선 DOM 을 먼저 만들고 최종 폭을 준 뒤 실제 높이를 재고, 2차: 그 높이로 적층한다.
@@ -126,6 +136,11 @@ export class MemoLayer {
       showGuides: review.showMemoGuides,
     });
     this.applyLayout(layout);
+  }
+
+  /** 앵커 사각형 캐시를 비운다 — 문서 배치·배율·내용이 바뀐 뒤 호출 */
+  invalidateRects(): void {
+    this.rectCache.clear();
   }
 
   setVisible(show: boolean): void {
@@ -218,6 +233,9 @@ export class MemoLayer {
         this.updateBalloon(el, m);
       }
       el.style.width = `${widthPx}px`;
+      // 폭이 정해지고 DOM 에 붙은 뒤에 높이를 재야 줄바꿈이 반영된다(첫 렌더·배율 변경)
+      const ta = el.querySelector<HTMLTextAreaElement>('textarea.memo-text');
+      if (ta) this.autoGrow(ta);
       el.classList.toggle('active', this.store.activeId === m.fieldId);
     }
   }

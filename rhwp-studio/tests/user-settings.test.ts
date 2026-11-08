@@ -573,3 +573,24 @@ test('review 절은 기본값으로 채워지고 문자열·불리언이 정규�
     userSettings.reload();
   }
 });
+
+test('사용자 이름의 / ; \ 와 제어문자는 공백으로 정제된다(메모 command 토큰 보호)', () => {
+  const originalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: Storage }).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => { store.set(k, v); },
+    removeItem: (k: string) => { store.delete(k); },
+    clear: () => store.clear(),
+    key: () => null,
+    get length() { return store.size; },
+  } as Storage;
+  try {
+    userSettings.reload();
+    userSettings.updateReviewSettings({ userName: '홍/길;동' + String.fromCharCode(92) + 'x' + String.fromCharCode(9) + 'y' });
+    assert.equal(userSettings.getReviewSettings().userName, '홍 길 동 x y');
+  } finally {
+    (globalThis as { localStorage?: Storage }).localStorage = originalStorage;
+    userSettings.reload();
+  }
+});
