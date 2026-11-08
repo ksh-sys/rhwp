@@ -1,3 +1,4 @@
+import { collapsedMemos, positionToMemoLocation } from './memo/memo-collapse.ts';
 import { reviewCommands, syncMemoMenu } from '@/command/commands/review';
 import { setMemoServices } from './memo/memo-services.ts';
 import { MemoStore } from './memo/memo-store.ts';
@@ -726,13 +727,43 @@ async function initialize(): Promise<void> {
       onDelete: (entry) => {
         if (inputHandler?.removeMemo(entry)) memoStore!.refresh();
       },
+      onLeaveBalloon: () => {
+        if (inputHandler?.isActive()) inputHandler.focus();
+      },
+      onAnchorClick: (entry) => {
+        // 본문 메모만 캐럿을 옮긴다(moveCursorTo 는 본문 좌표 전용) — 셀 메모는 활성화만
+        if (!entry.location.path?.length) {
+          inputHandler?.moveCursorTo({
+            sectionIndex: entry.location.sectionIndex,
+            paragraphIndex: entry.location.paraIndex,
+            charOffset: entry.startCharIdx,
+          });
+        }
+      },
       requestRelayout: () => {
         const size = canvasView!.getViewportManager().getViewportSize();
         eventBus.emit('viewport-resize', size.width, size.height);
       },
     });
     const memoRefresh = () => {
-      memoStore!.refresh();
+      const entries = memoStore!.refresh();
+      // 앵커 글자가 모두 지워진 메모는 함께 지운다(설계서 §3.3) — 삭제는 별도 snapshot 이라 되돌릴 수 있다
+      const collapsed = collapsedMemos(entries);
+      if (collapsed.length > 0 && inputHandler) {
+        let removed = 0;
+        for (const m of collapsed) if (inputHandler.removeMemo(m)) removed += 1;
+        if (removed > 0) {
+          memoStore!.refresh();
+          const sb = document.getElementById('sb-message');
+          if (sb) {
+            const prev = sb.textContent;
+            sb.textContent = t('memo.removedWithText.text');
+            window.setTimeout(() => {
+              if (sb.textContent === t('memo.removedWithText.text')) sb.textContent = prev;
+            }, 4000);
+          }
+        }
+      }
       memoLayer!.render();
     };
     const memoReposition = () => memoLayer!.render();
@@ -749,7 +780,25 @@ async function initialize(): Promise<void> {
     syncMemoMenu();
     eventBus.on('memo-activate', (id) => {
       memoLayer!.render();
-      requestAnimationFrame(() => memoLayer!.focusBalloon(id as number));
+      // 명령 실행 직후 InputHandler 가 숨은 textarea 로 포커스를 되돌리므로 한 틱 뒤에 풍선으로 옮긴다
+      let tries = 0;
+      const tryFocus = () => {
+        if (memoLayer!.focusBalloon(id as number) || ++tries > 5) return;
+        window.setTimeout(tryFocus, 60);
+      };
+      window.setTimeout(tryFocus, 60);
+    });
+    // 캐럿이 메모 범위 안에 들어오면 그 풍선을 활성화한다(밖이면 해제)
+    eventBus.on('cursor-para-changed', () => {
+      if (!inputHandler || !memoStore || memoStore.entries.length === 0) return;
+      if (document.activeElement?.classList.contains('memo-text')) return;
+      try {
+        const pos = inputHandler.getCursorPosition();
+        const hit = memoStore.findAtCaret(positionToMemoLocation(pos), pos.charOffset);
+        memoStore.setActive(hit ? hit.fieldId : null);
+      } catch {
+        /* 좌표를 못 읽는 모드(머리말 등)면 그대로 둔다 */
+      }
     });
     inputHandler.setTableResizeRenderer(
       new TableResizeRenderer(container, canvasView.getVirtualScroll()),

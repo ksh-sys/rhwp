@@ -1823,6 +1823,7 @@ const catalog = {
   "memo.noRange.text": "Select text or place the caret on a word to attach a memo.",
   "memo.openOptions.text": "Open Preferences",
   "memo.overlapsField.text": "A memo cannot overlap a hyperlink or form field. Select text outside it.",
+  "memo.removedWithText.text": "The memo was removed because its text was deleted.",
   "memo.unreadableHwp.text": "Memo text from .hwp files cannot be read",
   "menu.edit": "Edit",
   "menu.file": "File",

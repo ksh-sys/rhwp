@@ -28,9 +28,13 @@ export interface MemoLayerOptions {
   onActivate(fieldId: number): void;
   /** 띠 폭이 바뀌어 쪽 배치를 다시 계산해야 할 때 */
   requestRelayout(): void;
-  /** 풍선 본문 편집(Task 9 에서 연결). 없으면 읽기 전용 표시 */
+  /** 풍선 본문 편집. 없으면 읽기 전용 표시 */
   onEditText?: (entry: MemoEntry, text: string) => void;
   onDelete?: (entry: MemoEntry) => void;
+  /** Escape 등으로 풍선 편집을 떠날 때 — 본문 편집기로 포커스를 돌려준다 */
+  onLeaveBalloon?: () => void;
+  /** 앵커 밑줄 클릭 — 본문 캐럿을 그 자리로 */
+  onAnchorClick?: (entry: MemoEntry) => void;
 }
 
 const GAP = 6;
@@ -134,11 +138,15 @@ export class MemoLayer {
     this.render();
   }
 
-  /** 풍선의 본문 편집 칸에 포커스를 준다(새 메모 직후). */
-  focusBalloon(fieldId: number): void {
+  /** 풍선의 본문 편집 칸에 포커스를 준다(새 메모 직후·이전/다음). 없으면 false. */
+  focusBalloon(fieldId: number): boolean {
     const el = this.balloons.get(fieldId);
-    const body = el?.querySelector<HTMLElement>('.memo-text');
-    body?.focus();
+    const ta = el?.querySelector<HTMLTextAreaElement>('textarea.memo-text');
+    if (!ta) return false;
+    ta.focus();
+    const n = ta.value.length;
+    ta.setSelectionRange(n, n);
+    return true;
   }
 
   dispose(): void {
@@ -269,7 +277,30 @@ export class MemoLayer {
         ta.className = 'memo-text';
         ta.rows = 2;
         ta.addEventListener('mousedown', (ev) => ev.stopPropagation());
-        ta.addEventListener('keydown', (ev) => ev.stopPropagation());
+        ta.addEventListener('keydown', (ev) => {
+          ev.stopPropagation();
+          if (ev.key === 'Escape') {
+            // 원래 값으로 되돌리고 본문으로 돌아간다 (blur 의 확정은 값이 같아 no-op)
+            const cur = this.store.byId(m.fieldId);
+            ta!.value = cur?.text ?? '';
+            this.autoGrow(ta!);
+            ta!.blur();
+            this.opts.onLeaveBalloon?.();
+            ev.preventDefault();
+          } else if (ev.key === 'Enter' && ev.ctrlKey) {
+            ta!.blur(); // blur 가 확정한다
+            this.opts.onLeaveBalloon?.();
+            ev.preventDefault();
+          } else if (ev.key === 'Backspace' && ta!.value === '') {
+            const cur = this.store.byId(m.fieldId);
+            ev.preventDefault();
+            if (cur) {
+              ta!.blur();
+              this.opts.onDelete?.(cur);
+              this.opts.onLeaveBalloon?.();
+            }
+          }
+        });
         ta.addEventListener('input', () => this.autoGrow(ta!));
         ta.addEventListener('focus', () => this.opts.onActivate(m.fieldId));
         ta.addEventListener('blur', () => this.commitText(m.fieldId, ta!));
@@ -334,7 +365,10 @@ export class MemoLayer {
       el.style.width = `${a.width}px`;
       el.addEventListener('mousedown', (ev) => {
         ev.stopPropagation();
+        ev.preventDefault();
         this.opts.onActivate(a.fieldId);
+        const cur = this.store.byId(a.fieldId);
+        if (cur) this.opts.onAnchorClick?.(cur);
       });
       this.layer.appendChild(el);
       return el;
