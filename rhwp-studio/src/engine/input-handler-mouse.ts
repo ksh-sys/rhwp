@@ -1,3 +1,4 @@
+import { tableHandleCursor } from './table-resize-updates';
 /** input-handler mouse methods — extracted from InputHandler class */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -430,6 +431,14 @@ export function onClick(this: any, e: MouseEvent): void {
         const py = (cy - po) / zoom;
         try {
           const handleDir = this.tableObjectRenderer?.getHandleAtPoint(cx, cy);
+          // 핸들 드래그 → 표 전체 배율 조절 (중첩 표·회전 핸들 제외)
+          if (handleDir && handleDir !== 'rotate' && !(ref.cellPath && ref.cellPath.length > 1)) {
+            e.preventDefault();
+            if (this.startTableScaleDrag({ sec: ref.sec, ppi: ref.ppi, ci: ref.ci }, handleDir, pi, px, py)) {
+              this.textarea.focus();
+              return;
+            }
+          }
           let enterCellHit: any = null;
           if (!handleDir) {
             const hit = this.wasm.hitTest(pi, px, py);
@@ -774,11 +783,8 @@ export function onClick(this: any, e: MouseEvent): void {
       const cellRC = this.hitTestCellRowCol(e);
       if (cellRC) {
         e.preventDefault();
-        if (e.shiftKey) {
-          this.cursor.shiftSelectCell(cellRC.row, cellRC.col);
-        } else {
-          this.cursor.ctrlToggleCell(cellRC.row, cellRC.col);
-        }
+        // Shift·Ctrl 모두 기준 셀부터 클릭한 셀까지 사각 범위 (사용자 요청 — Ctrl+클릭 = 영역 선택)
+        this.cursor.shiftSelectCell(cellRC.row, cellRC.col);
         this.updateCellSelection();
         this.textarea.focus();
         return;
@@ -795,6 +801,18 @@ export function onClick(this: any, e: MouseEvent): void {
     // 셀 밖 일반 좌클릭 → 셀 선택 모드 종료
     this.cursor.exitCellSelectionMode();
     this.cellSelectionRenderer?.clear();
+  }
+
+  // 셀 안 캐럿 + Ctrl+클릭(다른 셀) → 캐럿 셀부터 클릭한 셀까지 셀 블록 선택 (사용자 요청)
+  if (e.button === 0 && e.ctrlKey && !e.shiftKey && !e.altKey && this.cursor.isInCell() && !this.cursor.isInCellSelectionMode()) {
+    const cellRC = this.hitTestCellRowCol(e);
+    if (cellRC && this.cursor.enterCellSelectionMode('manual')) {
+      e.preventDefault();
+      this.cursor.setCellSelectionFocus(cellRC.row, cellRC.col);
+      this.updateCellSelection();
+      this.textarea.focus();
+      return;
+    }
   }
 
   // 우클릭 → 텍스트 선택 블록 유지 (컨텍스트 메뉴에서 처리)
@@ -1676,6 +1694,34 @@ export function onMouseMove(this: any, e: MouseEvent): void {
     return;
   }
 
+  // 표 개체 핸들 드래그 중(표 전체 배율 조절): 미리보기 테두리만 갱신
+  if (this.isTableScaleDragging && this.tableScaleState) {
+    if (this.dragRafId) return;
+    this.dragRafId = requestAnimationFrame(() => {
+      this.dragRafId = 0;
+      if (!this.isTableScaleDragging || !this.tableScaleState) return;
+      this.updateTableScaleDrag(e);
+    });
+    return;
+  }
+
+  // 표 개체 선택 중 핸들 위 hover → 크기 조절 커서
+  if (this.cursor.isInTableObjectSelection() && this.tableObjectRenderer && !this.isMoveDragging) {
+    const sc = this.container.querySelector('#scroll-content');
+    if (sc) {
+      const cr = sc.getBoundingClientRect();
+      const dir = this.tableObjectRenderer.getHandleAtPoint(e.clientX - cr.left, e.clientY - cr.top);
+      const cursorStyle = tableHandleCursor(dir);
+      if (cursorStyle) {
+        this.container.style.cursor = cursorStyle;
+        this.tableHandleHoverCursor = true;
+      } else if (this.tableHandleHoverCursor) {
+        this.container.style.cursor = '';
+        this.tableHandleHoverCursor = false;
+      }
+    }
+  }
+
   // 표 이동 드래그 중
   if (this.isMoveDragging && this.moveDragState) {
     if (this.dragRafId) return;
@@ -2005,6 +2051,12 @@ function finishMouseUp(this: any, _e: MouseEvent): void {
   // 글상자 배치 모드 마우스업 → 삽입 실행
   if (this.textboxPlacementMode && this.textboxPlacementDrag) {
     this.finishTextboxPlacement(_e);
+    return;
+  }
+
+  // 표 개체 핸들 드래그 종료 → 비율 적용
+  if (this.isTableScaleDragging) {
+    this.finishTableScaleDrag();
     return;
   }
 

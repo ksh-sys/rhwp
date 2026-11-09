@@ -411,6 +411,10 @@ export class InputHandler {
 
   // 표 이동 드래그 상태
   private isMoveDragging = false;
+  /** 표 개체 선택 핸들 드래그(표 전체 배율 조절) */
+  private isTableScaleDragging = false;
+  private tableScaleState: _table.TableScaleState | null = null;
+  private tableHandleHoverCursor = false;
   private moveDragState: {
     tableRef: { sec: number; ppi: number; ci: number };
     startPpi: number;  // 드래그 시작 시 ppi (Undo용)
@@ -1462,6 +1466,19 @@ export class InputHandler {
 
   private resizeTableProportional(key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
     _table.resizeTableProportional.call(this, key);
+  }
+
+  /** 표 개체 핸들 드래그 — 표 전체 배율 조절 */
+  private startTableScaleDrag(ref: { sec: number; ppi: number; ci: number }, dir: _table.TableHandleDirectionAlias, pageIdx: number, pageX: number, pageY: number): boolean {
+    return _table.startTableScaleDrag.call(this, ref, dir, pageIdx, pageX, pageY);
+  }
+
+  private updateTableScaleDrag(e: MouseEvent): void {
+    _table.updateTableScaleDrag.call(this, e);
+  }
+
+  private finishTableScaleDrag(): void {
+    _table.finishTableScaleDrag.call(this);
   }
 
   /** 마우스 버튼 놓기: 드래그 선택 종료 */

@@ -19,6 +19,10 @@ import {
   type CellSelectionRange,
   type LocalResizeUpdate,
   type ResizeArrowKey,
+  buildScaleUpdates,
+  scaledSizeForHandle,
+  tableHandleCursor,
+  type TableHandleDirection,
 } from './table-resize-updates';
 import { showToast } from '@/ui/toast';
 
@@ -970,6 +974,109 @@ export function equalizeSelectedCells(this: any, axis: 'width' | 'height'): bool
     console.warn(`[InputHandler] 셀 ${axis === 'width' ? '너비' : '높이'}를 같게 실패:`, err);
     return false;
   }
+}
+/* ── 표 개체 선택 핸들 드래그 — 표 전체 배율 조절 (사용자 요청) ─────────────────────── */
+
+export type TableHandleDirectionAlias = TableHandleDirection;
+
+export interface TableScaleState {
+  ref: { sec: number; ppi: number; ci: number };
+  dir: TableHandleDirection;
+  pageIdx: number;
+  startX: number;
+  startY: number;
+  /** 시작 쪽의 표 bbox (쪽 기준 px) */
+  bbox: { x: number; y: number; width: number; height: number };
+  curW: number;
+  curH: number;
+  cells: CellBbox[];
+}
+
+const MIN_TABLE_PX = 16;
+
+/** 핸들 mousedown: 드래그 상태를 만들고 커서를 바꾼다. 중첩 표는 호출부가 거른다. */
+export function startTableScaleDrag(
+  this: any,
+  ref: { sec: number; ppi: number; ci: number },
+  dir: TableHandleDirection,
+  pageIdx: number,
+  pageX: number,
+  pageY: number,
+): boolean {
+  try {
+    const bbox = this.wasm.getTableBBoxAtPage(ref.sec, ref.ppi, ref.ci, pageIdx);
+    const cells: CellBbox[] = this.wasm.getTableCellBboxes(ref.sec, ref.ppi, ref.ci, pageIdx);
+    if (!bbox || cells.length === 0) return false;
+    this.tableScaleState = {
+      ref: { sec: ref.sec, ppi: ref.ppi, ci: ref.ci },
+      dir,
+      pageIdx,
+      startX: pageX,
+      startY: pageY,
+      bbox: { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height },
+      curW: bbox.width,
+      curH: bbox.height,
+      cells,
+    } as TableScaleState;
+    this.isTableScaleDragging = true;
+    this.container.style.cursor = tableHandleCursor(dir);
+    document.addEventListener('mouseup', this.onMouseUpBound, { once: true });
+    return true;
+  } catch (err) {
+    console.warn('[InputHandler] startTableScaleDrag 실패:', err);
+    return false;
+  }
+}
+
+/** mousemove: 미리보기 테두리만 갱신한다(문서는 건드리지 않음). */
+export function updateTableScaleDrag(this: any, e: MouseEvent): void {
+  const st: TableScaleState | null = this.tableScaleState;
+  if (!st) return;
+  const p = this.pagePointFromClientPoint(e.clientX, e.clientY);
+  if (!p) return;
+  const size = scaledSizeForHandle(st.dir, { w: st.bbox.width, h: st.bbox.height }, { dx: p.pageX - st.startX, dy: p.pageY - st.startY }, MIN_TABLE_PX);
+  if (!size) return;
+  st.curW = size.w;
+  st.curH = size.h;
+  const zoom = this.viewportManager.getZoom();
+  this.tableObjectRenderer?.render({ pageIndex: st.pageIdx, x: st.bbox.x, y: st.bbox.y, width: size.w, height: size.h }, zoom);
+}
+
+/** mouseup: 비율을 계산해 칸 너비·줄 높이에 한 번에 적용한다(실행 취소 1단계). */
+export function finishTableScaleDrag(this: any): void {
+  const st: TableScaleState | null = this.tableScaleState;
+  this.isTableScaleDragging = false;
+  this.tableScaleState = null;
+  this.container.style.cursor = '';
+  if (!st) return;
+  const scaleW = st.curW / st.bbox.width;
+  const scaleH = st.curH / st.bbox.height;
+  if (Math.abs(scaleW - 1) < 1e-3 && Math.abs(scaleH - 1) < 1e-3) {
+    this.renderTableObjectSelection();
+    return;
+  }
+  const geometry: CellGeometry[] = st.cells.map((b) => ({
+    cellIdx: b.cellIdx, row: b.row, col: b.col, rowSpan: b.rowSpan, colSpan: b.colSpan,
+    width: Math.round(b.w * HWPUNIT_PER_PX), height: Math.round(b.h * HWPUNIT_PER_PX),
+  }));
+  const updates = buildScaleUpdates(geometry, scaleW, scaleH);
+  if (updates.length === 0) {
+    this.renderTableObjectSelection();
+    return;
+  }
+  try {
+    this.executeOperation({
+      kind: 'snapshot',
+      operationType: 'scaleTable',
+      operation: (wasm: any) => {
+        wasm.resizeTableCells(st.ref.sec, st.ref.ppi, st.ref.ci, updates);
+        return this.cursor.getPosition();
+      },
+    });
+  } catch (err) {
+    console.warn('[InputHandler] finishTableScaleDrag 실패:', err);
+  }
+  this.renderTableObjectSelection();
 }
 
 /** 전체 표 비율 리사이즈 (phase 3, Ctrl+방향키) */

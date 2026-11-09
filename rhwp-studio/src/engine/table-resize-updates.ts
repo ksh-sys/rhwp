@@ -226,3 +226,78 @@ export function buildEqualHeightUpdates(
   }
   return updates;
 }
+
+/** 표 개체 핸들 방향 — table-object-renderer 의 HandleDirection 과 같다 */
+export type TableHandleDirection = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rotate';
+
+/**
+ * 표 전체 배율 조절(개체 선택 핸들 드래그): 칸 너비·줄 높이를 같은 비율로 늘리거나 줄인다.
+ * 칸(열)마다 증분을 정해 그 열에 걸친 셀에 더하므로 병합 셀도 줄 폭 합이 맞는다.
+ * 반올림은 누적 경계(equalEdge 와 같은 방식)로 해 줄 폭 합이 목표 폭과 정확히 같다.
+ */
+export function buildScaleUpdates(cells: CellGeometry[], scaleW: number, scaleH: number): LocalResizeUpdate[] {
+  const unique = uniqueGeometry(cells);
+  const colW = new Map<number, number>();
+  const rowH = new Map<number, number>();
+  for (const c of unique) {
+    if (c.colSpan === 1 && !colW.has(c.col)) colW.set(c.col, c.width);
+    if (c.rowSpan === 1 && !rowH.has(c.row)) rowH.set(c.row, c.height);
+  }
+  const deltas = (sizes: Map<number, number>, scale: number): Map<number, number> => {
+    const keys = [...sizes.keys()].sort((a, b) => a - b);
+    const out = new Map<number, number>();
+    let acc = 0;
+    let accScaled = 0;
+    for (const k of keys) {
+      const w = sizes.get(k)!;
+      acc += w;
+      const edge = Math.round(acc * scale);
+      out.set(k, edge - accScaled - w);
+      accScaled = edge;
+    }
+    return out;
+  };
+  const dW = scaleW === 1 ? new Map<number, number>() : deltas(colW, scaleW);
+  const dH = scaleH === 1 ? new Map<number, number>() : deltas(rowH, scaleH);
+  const updates: LocalResizeUpdate[] = [];
+  for (const c of unique) {
+    let widthDelta = 0;
+    for (let k = c.col; k < c.col + c.colSpan; k++) widthDelta += dW.get(k) ?? 0;
+    let heightDelta = 0;
+    for (let k = c.row; k < c.row + c.rowSpan; k++) heightDelta += dH.get(k) ?? 0;
+    if (widthDelta === 0 && heightDelta === 0) continue;
+    const u: LocalResizeUpdate = { cellIdx: c.cellIdx };
+    if (widthDelta !== 0) u.widthDelta = widthDelta;
+    if (heightDelta !== 0) u.heightDelta = heightDelta;
+    updates.push(u);
+  }
+  return updates;
+}
+
+/** 핸들 방향별 드래그 변위 → 새 크기(px). 왼쪽·위 핸들은 반대 방향으로 자란다. 회전 핸들은 null. */
+export function scaledSizeForHandle(
+  dir: TableHandleDirection,
+  start: { w: number; h: number },
+  delta: { dx: number; dy: number },
+  min: number,
+): { w: number; h: number } | null {
+  if (dir === 'rotate') return null;
+  let w = start.w;
+  let h = start.h;
+  if (dir.includes('e')) w = start.w + delta.dx;
+  if (dir.includes('w')) w = start.w - delta.dx;
+  if (dir.includes('s')) h = start.h + delta.dy;
+  if (dir.includes('n')) h = start.h - delta.dy;
+  return { w: Math.max(min, w), h: Math.max(min, h) };
+}
+
+/** 핸들 방향별 마우스 커서 */
+export function tableHandleCursor(dir: TableHandleDirection | null | undefined): string {
+  switch (dir) {
+    case 'e': case 'w': return 'ew-resize';
+    case 'n': case 's': return 'ns-resize';
+    case 'ne': case 'sw': return 'nesw-resize';
+    case 'nw': case 'se': return 'nwse-resize';
+    default: return '';
+  }
+}
