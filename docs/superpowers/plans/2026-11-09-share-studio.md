@@ -8,7 +8,7 @@
 
 **Tech Stack:** vanilla TypeScript + Vite · node:test(`.ts` 직접 실행, 순수 모듈은 `@/` 금지)
 
-**Spec:** `D:\04. claud code\02. 클로드 작업실\07_회원사 관리\docs\superpowers\specs\2026-11-08-hwp-link-share-design.md` (§4.1 제공자 인터페이스, §4.5 잠금·갱신 흐름, §4.10 포크 변경 범위)
+**Spec:** 호스트 저장소의 `docs/superpowers/specs/2026-11-08-hwp-link-share-design.md`(비공개 — 제공자 계약은 이 계획 Task 1 에 전문 수록) §4.1 제공자 인터페이스, §4.5 잠금·갱신 흐름, §4.10 포크 변경 범위
 
 ## Global Constraints
 
