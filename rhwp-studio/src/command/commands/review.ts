@@ -21,10 +21,8 @@ function statusNotice(message: string, ms = 4000): void {
   }, ms);
 }
 
-/** ISO 8601 UTC, 초 단위(한글 실측 `2026-11-08T23:31:20Z`) */
-export function nowIsoSeconds(): string {
-  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-}
+export { nowIsoSeconds } from '@/memo/memo-time';
+import { nowIsoSeconds } from '@/memo/memo-time';
 
 /** 메모 표시·안내선·내용 보기 체크 상태를 메뉴·리본에 반영한다(시작 시·토글 뒤). */
 export function syncMemoMenu(): void {

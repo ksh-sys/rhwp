@@ -20,6 +20,7 @@ import {
   type PageBox,
 } from './memo-layout.ts';
 import { memoBandPx, type MemoEntry } from './memo-types.ts';
+import { formatWhen } from './memo-time.ts';
 
 export interface MemoLayerOptions {
   getZoom(): number;
@@ -405,11 +406,4 @@ export class MemoLayer {
   }
 }
 
-/** ISO 8601 UTC → 로컬 `YYYY/MM/DD HH:mm`. 비어 있거나 못 읽으면 빈 문자열. */
-export function formatWhen(iso: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
+export { formatWhen } from './memo-time.ts';

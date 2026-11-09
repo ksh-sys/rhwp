@@ -57,3 +57,12 @@ test('검토 i18n 키가 ko/en 에 모두 있다', () => {
     for (const key of keys) assert.ok(src.includes(`"${key}"`), `${locale}: ${key}`);
   }
 });
+
+import { formatWhen, nowIsoSeconds } from '../src/memo/memo-time.ts';
+
+test('메모 작성 시각은 한글처럼 현지 시각 + Z 로 쓰고, 읽을 때도 현지 시각으로 보여 준다', () => {
+  const d = new Date(2026, 10, 8, 23, 31, 20); // 2026-11-08 23:31:20 현지
+  assert.equal(nowIsoSeconds(d), '2026-11-08T23:31:20Z');
+  assert.equal(formatWhen('2026-11-08T23:31:20Z'), '2026/11/08 23:31');
+  assert.equal(formatWhen(''), '');
+});
