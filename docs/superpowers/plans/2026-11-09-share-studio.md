@@ -177,7 +177,7 @@
 
 **Files:**
 - Create: `rhwp-studio/public/share-provider.dev.js`(BroadcastChannel 로 탭 간 동기화하는 메모리 제공자 — dev 전용, 빌드 산출물엔 안 들어가도록 `vite.config.ts` 의 PWA globIgnores 에 추가), `rhwp-studio/docs/share-provider.md`(제공자 계약 — 조직 언급 없음)
-- Modify: `D:\04. claud code\02. 클로드 작업실\05_kossa.kr\.claude\launch.json`(`rhwp-studio-dev` 에 `RHWP_SHARE_PROVIDER=./share-provider.dev.js` 환경변수 — 가능하면; 아니면 dev 에서만 `?shareProvider=` 쿼리로 로더 URL 지정 허용)
+- Modify: 호스트 쪽 개발 서버 launch 설정(`rhwp-studio-dev` 에 `RHWP_SHARE_PROVIDER=./share-provider.dev.js` 환경변수 — 가능하면; 아니면 dev 에서만 `?shareProvider=` 쿼리로 로더 URL 지정 허용)
 - Test: `rhwp-studio/tests/share-dev-provider.test.ts`(계약 검사: `isShareProvider(devProvider)`; create→open 왕복; save 충돌)
 
 - [ ] **Step 1~5: RED → 구현 → GREEN → Commit** `chore(studio): 개발용 메모리 공유 제공자·계약 문서`
