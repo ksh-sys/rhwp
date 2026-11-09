@@ -66,3 +66,12 @@ test('메모 작성 시각은 한글처럼 현지 시각 + Z 로 쓰고, 읽을 
   assert.equal(formatWhen('2026-11-08T23:31:20Z'), '2026/11/08 23:31');
   assert.equal(formatWhen(''), '');
 });
+
+test('우클릭 메뉴(본문·표)에 「새 메모(U)」·「메모 지우기」가 있다', () => {
+  const ih = read('src/engine/input-handler.ts');
+  const def = ih.slice(ih.indexOf('private getDefaultContextMenuItems'), ih.indexOf('/** 특수 키 처리'));
+  assert.match(def, /commandId: 'review:memo-insert', label: '새 메모\(U\)'/);
+  assert.match(def, /commandId: 'review:memo-delete'/);
+  const tbl = ih.slice(ih.indexOf('private getTableContextMenuItems'), ih.indexOf('private getDefaultContextMenuItems'));
+  assert.match(tbl, /commandId: 'review:memo-insert'/);
+});

@@ -1993,6 +1993,9 @@ export class InputHandler {
       { type: 'command', commandId: 'table:split', label: '표 나누기' },
       { type: 'command', commandId: 'table:attach', label: '표 붙이기' },
       { type: 'command', commandId: 'table:delete' },
+      { type: 'separator' },
+      { type: 'command', commandId: 'review:memo-insert', label: '새 메모(U)' },
+      { type: 'command', commandId: 'review:memo-delete', label: '메모 지우기' },
     ];
   }
 
@@ -2010,6 +2013,10 @@ export class InputHandler {
       { type: 'command', commandId: 'format:para-shape', label: '문단 모양' },
       { type: 'separator' },
       { type: 'command', commandId: 'format:para-num-shape', label: '문단 번호 모양(N)...' },
+      { type: 'separator' },
+      // 한컴 우클릭 메뉴의 「새 메모(U)」 — 선택(없으면 캐럿 낱말)에 메모 (사용자 요청)
+      { type: 'command', commandId: 'review:memo-insert', label: '새 메모(U)' },
+      { type: 'command', commandId: 'review:memo-delete', label: '메모 지우기' },
     ];
   }
 
