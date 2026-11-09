@@ -1455,6 +1455,11 @@ export class InputHandler {
     return this.canEditHyperlink();
   }
 
+  /** IME 조합 중인가 — 조합 중 지우기→넣기 사이의 일시적 빈 메모 범위를 건드리지 않기 위해 밖에서 읽는다 */
+  isImeComposing(): boolean {
+    return this.isComposing;
+  }
+
   private resizeTableProportional(key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
     _table.resizeTableProportional.call(this, key);
   }

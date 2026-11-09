@@ -762,7 +762,7 @@ async function initialize(): Promise<void> {
           const cur = entries.find((m) => m.fieldId === id);
           if (!cur || cur.startCharIdx < cur.endCharIdx) memoProtectedIds.delete(id);
         }
-        const composing = Boolean((inputHandler as unknown as { isComposing?: () => boolean }).isComposing?.());
+        const composing = inputHandler.isImeComposing();
         const targets = collapsedMemosToRemove(entries, { protectedIds: memoProtectedIds, composing });
         if (targets.length === 0) return;
         let removed = 0;
