@@ -2,15 +2,23 @@
  * 공유 세션 상태 기계 — 순수(제공자·시계·타이머 주입, DOM 없음).
  *
  * 한 문서에 편집자는 한 명(잠금). 편집자는 60초마다 심장박동을 보내고, 30분 동안 입력이 없으면
- * 보내지 않아 잠금이 저절로 만료된다(다른 사람이 이어받을 수 있게). 저장은 baseVersion 이 서버
- * 최신일 때만 받아들여지고(제공자 책임), 아니면 충돌로 끝난다 — 자리 비운 사이 남이 저장한 문서를
- * 덮어쓰지 않는다.
+ * 보내지 않는다. 박동이 5분 끊긴 잠금은 비어 있는 것으로 본다 — 자리 비움은 약 35분, 창을 닫으면
+ * 5분 뒤 다른 사람이 이어받는다. 저장은 baseVersion 이 서버 최신일 때만 받아들여지고(제공자 책임),
+ * 아니면 충돌로 끝난다 — 자리 비운 사이 남이 저장한 문서를 덮어쓰지 않는다.
+ *
+ * 비동기 경로는 직렬화한다: 저장은 한 번에 하나(겹친 Ctrl+S 는 앞 저장 뒤 새 기준으로), 새 버전
+ * 다시 열기도 한 번에 하나이며 열기가 끝난 뒤에만 기준 버전을 올린다.
  */
 import { isShareConflictError, isShareGoneError } from './provider.ts';
 import type { ShareLock, ShareMeta, ShareProvider } from './provider.ts';
 
 export const HEARTBEAT_MS = 60_000;
-export const LOCK_TTL_MS = 30 * 60_000;
+/** 박동이 이만큼 끊기면 잠금은 비어 있다 */
+export const LOCK_TTL_MS = 5 * 60_000;
+/** 입력이 이만큼 없으면 박동을 멈춘다(잠금이 저절로 풀리게) */
+export const IDLE_MS = 30 * 60_000;
+
+export type SaveResult = 'saved' | 'conflict' | 'failed' | 'lost-lock';
 
 export type ShareRole = 'editor' | 'viewer';
 
@@ -46,8 +54,8 @@ export interface SessionDeps {
   /** 잠금 주인 식별자(이름#탭ID) */
   by: string;
   onState(state: SessionState): void;
-  /** 내 수정이 없을 때 남이 저장한 새 버전 — 호출부가 다시 연다 */
-  onNewVersion(bytes: Uint8Array, meta: ShareMeta): void;
+  /** 내 수정이 없을 때 남이 저장한 새 버전 — 호출부가 다시 연다(실패하면 throw, 기준 버전 유지) */
+  onNewVersion(bytes: Uint8Array, meta: ShareMeta): void | Promise<void>;
 }
 
 /** 잠금이 없거나 마지막 심장박동이 ttl 보다 오래됐으면 true(= 비어 있음) */
@@ -72,6 +80,8 @@ export class ShareSession {
   private lastActivity = 0;
   private heartbeatPaused = false;
   private acquiring = false;
+  private saveChain: Promise<unknown> = Promise.resolve();
+  private reloadChain: Promise<unknown> = Promise.resolve();
 
   constructor(deps: SessionDeps) {
     this.deps = deps;
@@ -133,9 +143,27 @@ export class ShareSession {
     if (s && s.dirty !== dirty) this.set({ ...s, dirty });
   }
 
-  async save(bytes: Uint8Array): Promise<'saved' | 'conflict' | 'failed'> {
+  /** 저장 — 한 번에 하나씩. 겹쳐 부르면 앞 저장이 끝난 뒤 그때의 기준 버전으로 보낸다. */
+  save(bytes: Uint8Array): Promise<SaveResult> {
+    const run = this.saveChain.then(() => this.saveNow(bytes));
+    this.saveChain = run.catch(() => undefined);
+    return run;
+  }
+
+  private async saveNow(bytes: Uint8Array): Promise<SaveResult> {
     const s = this.openState();
     if (!s || s.role !== 'editor' || !s.lockHeld) return 'failed';
+    // 저장 직전에 잠금을 서버에 확인한다 — 자는 동안 남이 이어받았는데 알림이 아직 안 왔을 수 있다
+    let stillMine = true;
+    try {
+      stillMine = await this.deps.provider.heartbeat(s.token, this.deps.by);
+    } catch {
+      stillMine = true; // 네트워크 오류면 저장 자체가 판가름한다
+    }
+    if (!stillMine) {
+      this.loseLock();
+      return 'lost-lock';
+    }
     try {
       const { version } = await this.deps.provider.save(s.token, bytes, s.baseVersion, this.deps.by);
       const cur = this.openState();
@@ -276,7 +304,7 @@ export class ShareSession {
   private async beat(force: boolean): Promise<void> {
     const s = this.openState();
     if (!s || !s.lockHeld) return;
-    if (!force && this.deps.now() - this.lastActivity > LOCK_TTL_MS) {
+    if (!force && this.deps.now() - this.lastActivity > IDLE_MS) {
       this.heartbeatPaused = true;
       return;
     }
@@ -326,7 +354,7 @@ export class ShareSession {
     this.set(next);
     if (verifyLock) await this.beat(true);
 
-    if (newer && !next.dirty) await this.fetchLatest(next.token);
+    if (newer && !next.dirty) await this.queueFetchLatest(next.token);
 
     const after = this.openState();
     if (after && !after.lockHeld && after.meta.access === 'edit'
@@ -335,7 +363,16 @@ export class ShareSession {
     }
   }
 
+  /** 새 버전 다시 열기 — 한 번에 하나씩(앞 열기가 끝난 뒤 다음) */
+  private queueFetchLatest(token: string): Promise<void> {
+    const run = this.reloadChain.then(() => this.fetchLatest(token));
+    this.reloadChain = run.catch(() => undefined);
+    return run;
+  }
+
   private async fetchLatest(token: string): Promise<void> {
+    const before = this.openState();
+    if (!before || before.token !== token || before.dirty) return;
     let res;
     try {
       res = await this.deps.provider.open(token);
@@ -345,7 +382,16 @@ export class ShareSession {
     }
     const cur = this.openState();
     if (!cur || cur.token !== token || cur.dirty) return;
-    this.set({ ...cur, meta: res.meta, baseVersion: res.meta.version, pendingVersion: undefined, ...this.lockInfo(res.meta) });
-    this.deps.onNewVersion(res.bytes, res.meta);
+    if (res.meta.version <= cur.baseVersion) return; // 이미 그 버전(또는 더 새것)을 보고 있다
+    try {
+      await this.deps.onNewVersion(res.bytes, res.meta);
+    } catch (e) {
+      console.warn('[share] 새 버전을 열지 못했습니다 — 기준 버전을 유지합니다:', e);
+      return;
+    }
+    // 화면이 실제로 그 버전이 된 뒤에만 기준 버전을 올린다
+    const after = this.openState();
+    if (!after || after.token !== token) return;
+    this.set({ ...after, meta: res.meta, baseVersion: res.meta.version, pendingVersion: undefined, dirty: false, ...this.lockInfo(res.meta) });
   }
 }

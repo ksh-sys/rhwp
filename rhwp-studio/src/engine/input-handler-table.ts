@@ -698,6 +698,7 @@ export function finishImagePlacement(this: any, e: MouseEvent): void {
 }
 
 export function moveSelectedTable(this: any, key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
+  if (this.isViewMode?.()) return;
   const ref = this.cursor.getSelectedTableRef();
   if (!ref) return;
 
@@ -729,6 +730,7 @@ export function moveSelectedTable(this: any, key: 'ArrowUp' | 'ArrowDown' | 'Arr
 }
 
 export function moveSelectedPicture(this: any, key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
+  if (this.isViewMode?.()) return;
   const refs = this.cursor.getSelectedPictureRefs();
   const ref = this.cursor.getSelectedPictureRef();
   if (!ref) return;

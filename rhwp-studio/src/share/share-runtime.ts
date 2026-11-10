@@ -59,7 +59,8 @@ export class ShareRuntime {
   session: ShareSession | null = null;
   provider: ShareProvider | null = null;
   private readonly deps: ShareRuntimeDeps;
-  private loadingShare = false;
+  /** 공유본을 여는 중인 횟수 — 그동안의 document-swapped 는 내 열기다(다른 문서 열기가 아님) */
+  private loadingShare = 0;
   private viewModeByShare = false;
   private bannerTimer: number | null = null;
   private providerLoaded = false;
@@ -68,7 +69,7 @@ export class ShareRuntime {
     this.deps = deps;
     deps.eventBus.on('document-dirty-changed', () => this.session?.setDirty(this.deps.isDirty()));
     deps.eventBus.on('document-swapped', () => {
-      if (!this.loadingShare && this.session) void this.leave();
+      if (this.loadingShare === 0 && this.session) void this.leave();
     });
     const activity = () => this.session?.noteActivity();
     for (const type of ['keydown', 'pointerdown', 'wheel'] as const) {
@@ -159,6 +160,11 @@ export class ShareRuntime {
       showToast({ message: t('share.restoreBlocked.text') });
       return;
     }
+    // 저장하지 않은 수정이 있으면 되돌리기가 그것을 덮어쓴다 — 먼저 저장(또는 내려받기)하게 한다
+    if (st.dirty || this.deps.isDirty()) {
+      showToast({ message: t('share.restoreDirty.text') });
+      return;
+    }
     const bytes = await this.provider.openVersion(st.token, version);
     const r = await session.save(bytes);
     const after = session.state;
@@ -217,7 +223,7 @@ export class ShareRuntime {
       clearInterval: (h) => window.clearInterval(h as number),
       by: lockOwnerId(name, tabClientId()),
       onState: (s) => this.onState(s),
-      onNewVersion: (bytes, meta) => { void this.applyNewVersion(bytes, meta); },
+      onNewVersion: (bytes, meta) => this.applyNewVersion(bytes, meta),
     });
     this.session = session;
     let bytes: Uint8Array | null;
@@ -273,11 +279,11 @@ export class ShareRuntime {
   }
 
   private async withShareLoad(fn: () => Promise<void>): Promise<void> {
-    this.loadingShare = true;
+    this.loadingShare += 1;
     try {
       await fn();
     } finally {
-      this.loadingShare = false;
+      this.loadingShare -= 1;
     }
   }
 

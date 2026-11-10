@@ -4600,6 +4600,17 @@ export class InputHandler {
   /** 현재 편집 모드를 설정한다 */
   setEditMode(mode: EditorEditMode): void {
     this.editMode = mode;
+    if (mode === 'view') {
+      // 머리말·각주 편집 갈래는 wasm 을 직접 고친다 — 보기 전용이 되면 본문으로 빠져나온다
+      if (this.cursor.isInHeaderFooter()) {
+        this.cursor.exitHeaderFooterMode();
+        emitHeaderFooterModeChanged(this.eventBus, this.cursor);
+      }
+      if (this.cursor.isInFootnote()) {
+        this.cursor.exitFootnoteMode();
+        this.eventBus.emit('footnoteModeChanged', false);
+      }
+    }
     if (mode === 'form' || mode === 'view') {
       if (this.cursor.isInPictureObjectSelection()) {
         this.cursor.moveOutOfSelectedPicture();

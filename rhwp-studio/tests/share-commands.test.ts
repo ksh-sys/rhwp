@@ -64,3 +64,17 @@ test('공개 포크 — 공유 소스·개발 제공자에 조직 이름·도메
     assert.doesNotMatch(src, /kossa|협회|firebase/i, f);
   }
 });
+
+test('[최종 검토] 되돌리기는 확인을 받고, 저장하지 않은 수정이 있으면 거부한다', () => {
+  const dlg = read('src/share/share-manage-dialog.ts');
+  const click = dlg.slice(dlg.indexOf("b.textContent = t('dialog.shareManage.restore');"), dlg.indexOf("b.textContent = t('dialog.shareManage.restore');") + 700);
+  assert.ok(click.indexOf('showConfirm(') >= 0 && click.indexOf('showConfirm(') < click.indexOf('this.opts.restore('));
+  const rt = read('src/share/share-runtime.ts');
+  const fn = rt.slice(rt.indexOf('async restoreVersion('), rt.indexOf('async restoreVersion(') + 700);
+  assert.match(fn, /st\.dirty/);
+  assert.match(fn, /share\.restoreDirty\.text/);
+  for (const loc of ['ko', 'en']) {
+    const src = read(`src/i18n/locales/${loc}.ts`);
+    for (const k of ['share.restoreDirty.text', 'dialog.shareManage.restoreConfirm', 'share.lockLost.text']) assert.ok(src.includes(`"${k}"`), `${loc}: ${k}`);
+  }
+});

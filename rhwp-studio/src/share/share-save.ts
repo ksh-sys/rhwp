@@ -9,7 +9,7 @@ import type { SessionState } from './share-session.ts';
 export const SHARE_MAX_BYTES = 20 * 1024 * 1024;
 
 export interface ShareSaveDeps {
-  session: { readonly state: SessionState; save(bytes: Uint8Array): Promise<'saved' | 'conflict' | 'failed'> };
+  session: { readonly state: SessionState; save(bytes: Uint8Array): Promise<'saved' | 'conflict' | 'failed' | 'lost-lock'> };
   /** 지연된 쪽 나눔 마무리 등 출력 전 준비(실패하면 throw) */
   prepare(): void;
   exportBytes(): Uint8Array;
@@ -40,6 +40,7 @@ export async function saveToShare(deps: ShareSaveDeps): Promise<'saved' | 'faile
       return 'saved';
     }
     if (result === 'failed') deps.toast(deps.t('share.saveFailed.text'));
+    if (result === 'lost-lock') deps.toast(deps.t('share.lockLost.text'));
     return 'failed';
   } catch (e) {
     console.warn('[share] 공유본 저장 실패:', e);

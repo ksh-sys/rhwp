@@ -52,3 +52,10 @@ test('런타임 — 다른 문서를 열면 공유 세션을 떠나고, 관리�
   const create = main.slice(main.indexOf('async function createNewDocument'), main.indexOf('async function createNewDocument') + 600);
   assert.match(create, /shareRuntime\?\.leave\(/);
 });
+
+test('[최종 검토] 공유본 열기 표시는 횟수(겹친 다시 열기에서 하나가 끝나도 남은 열기를 남의 문서 열기로 오인하지 않음)', () => {
+  const rt = read('src/share/share-runtime.ts');
+  assert.match(rt, /private loadingShare = 0;/);
+  assert.match(rt, /this\.loadingShare === 0 && this\.session/);
+  assert.match(rt, /onNewVersion: \(bytes, meta\) => this\.applyNewVersion\(bytes, meta\)/);
+});

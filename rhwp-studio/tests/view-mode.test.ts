@@ -94,3 +94,30 @@ test('main — view 상태줄 문구·편집 불가 컨텍스트·드롭 차단�
   assert.match(main, /toolbar\?\.setEnabled\(mode !== 'view'\)/);
   assert.match(main, /toolbar\?\.setEnabled\(editMode !== 'view'\)/);
 });
+
+test('[최종 검토] 머리말·각주 모드 키와 개체·표 선택 키도 보기 전용에서 막는다', () => {
+  const kb = read('src/engine/input-handler-keyboard.ts');
+  const head = (marker: string, len: number) => {
+    const i = kb.indexOf(marker);
+    assert.ok(i >= 0, marker);
+    return kb.slice(i, i + len);
+  };
+  assert.match(head('  if (this.cursor.isInHeaderFooter()) {\n    if (dispatchSubmodeGlobalShortcut', 400), /isViewMode/);
+  assert.match(head('  if (this.cursor.isInFootnote()) {\n    if (dispatchSubmodeGlobalShortcut', 400), /isViewMode/);
+  assert.match(head('  // ─── 그림/글상자 객체 선택 모드 중 키 처리', 700), /isViewMode/);
+  assert.match(head('  // ─── 표 객체 선택 모드 중 키 처리', 900), /isViewMode/);
+  const table = read('src/engine/input-handler-table.ts');
+  for (const fn of ['export function moveSelectedTable', 'export function moveSelectedPicture']) {
+    assert.match(table.slice(table.indexOf(fn), table.indexOf(fn) + 300), /isViewMode/, fn);
+  }
+  const pic = read('src/engine/input-handler-picture.ts');
+  const r = pic.indexOf('export function resizeSelectedPicture');
+  assert.match(pic.slice(r, r + 300), /isViewMode/);
+  const mouse = read('src/engine/input-handler-mouse.ts');
+  const fn = mouse.indexOf('// 본문 각주 마커 클릭 → 각주 편집 모드 진입');
+  assert.match(mouse.slice(fn, fn + 200), /isViewMode/);
+  const ih = read('src/engine/input-handler.ts');
+  const set = ih.slice(ih.indexOf('  setEditMode(mode: EditorEditMode): void {'), ih.indexOf('  /** 양식 모드인가? */'));
+  assert.match(set, /exitHeaderFooterMode/);
+  assert.match(set, /exitFootnoteMode/);
+});

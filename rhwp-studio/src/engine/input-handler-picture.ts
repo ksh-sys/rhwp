@@ -598,6 +598,7 @@ export function deleteObjectControl(this: any, ref: PictureObjectRef): void {
  * get/setObjectProperties 의 경로 분기를 그대로 탄다.
  */
 export function resizeSelectedPicture(this: any, key: ArrowKey): void {
+  if (this.isViewMode?.()) return;
   const refs = this.cursor.getSelectedPictureRefs();
   const ref = this.cursor.getSelectedPictureRef();
   if (!ref) return;

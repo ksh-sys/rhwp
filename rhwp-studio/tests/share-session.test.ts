@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ShareSession, lockExpired, roleFor, HEARTBEAT_MS, LOCK_TTL_MS, type SessionState } from '../src/share/share-session.ts';
+import { ShareSession, lockExpired, roleFor, HEARTBEAT_MS, LOCK_TTL_MS, IDLE_MS, type SessionState } from '../src/share/share-session.ts';
 import { ShareConflictError, ShareGoneError, type ShareMeta, type ShareProvider } from '../src/share/provider.ts';
 
 const TOK = '0123456789abcdef0123456789abcdef';
@@ -42,7 +42,7 @@ function fake(initial: ShareMeta) {
   };
 }
 
-function harness(initial: ShareMeta, now0 = 10_000_000) {
+function harness(initial: ShareMeta, now0 = 10_000_000, onNew?: (bytes: Uint8Array, m: ShareMeta) => void | Promise<void>) {
   const f = fake(initial);
   let now = now0;
   const timers = new Map<number, { fn: () => void; ms: number }>();
@@ -56,7 +56,7 @@ function harness(initial: ShareMeta, now0 = 10_000_000) {
     clearInterval: (h) => { timers.delete(h as number); },
     by: ME,
     onState: (s) => states.push(s),
-    onNewVersion: (_bytes, m) => newVersions.push(m.version),
+    onNewVersion: (bytes, m) => { newVersions.push(m.version); return onNew?.(bytes, m); },
   });
   const flush = () => new Promise((r) => setImmediate(r));
   const tick = async () => { for (const t of [...timers.values()]) t.fn(); await flush(); };
@@ -76,7 +76,8 @@ test('lockExpired / roleFor', () => {
   assert.equal(lockExpired(null, now), true);
   assert.equal(lockExpired({ by: OTHER, since: 0, heartbeatAt: now - 5 * MIN }, now), false);
   assert.equal(lockExpired({ by: OTHER, since: 0, heartbeatAt: now - 31 * MIN }, now), true);
-  assert.equal(LOCK_TTL_MS, 30 * MIN);
+  assert.equal(LOCK_TTL_MS, 5 * MIN);
+  assert.equal(IDLE_MS, 30 * MIN);
   assert.equal(HEARTBEAT_MS, MIN);
   assert.equal(roleFor(meta(), ME, now), 'editor');
   assert.equal(roleFor(meta({ access: 'view' }), ME, now), 'viewer');
@@ -331,4 +332,86 @@ test('제공자는 별도 모듈 — 오류 이름(name)만 같아도 충돌·�
   g.f.provider.open = async () => { throw Object.assign(new Error('gone'), { name: 'ShareGoneError' }); };
   assert.equal(await g.session.open(TOK, null), null);
   assert.equal(g.session.state.kind, 'gone');
+});
+
+
+// ─── 최종 검토 수정 ─────────────────────────────
+
+function deferred<T = void>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+test('잠금 만료는 박동 5분 끊김 — 30분 무입력으로 박동이 멈춘 뒤 5분이면 이어받을 수 있다(약 35분)', () => {
+  const now = 100 * MIN;
+  assert.equal(lockExpired({ by: OTHER, since: 0, heartbeatAt: now - 4 * MIN }, now), false);
+  assert.equal(lockExpired({ by: OTHER, since: 0, heartbeatAt: now - 6 * MIN }, now), true);
+});
+
+test('저장 겹침 — 두 번째 저장은 첫 저장이 끝난 뒤 새 기준 버전으로 이어서 보낸다(가짜 충돌 없음)', async () => {
+  const h = harness(meta());
+  await h.session.open(TOK, null);
+  const first = deferred<{ version: number }>();
+  let calls = 0;
+  h.f.ctl.saveImpl = async (base) => {
+    calls += 1;
+    if (calls === 1) return first.promise;
+    return { version: base + 1 };
+  };
+  const p1 = h.session.save(new Uint8Array([1]));
+  const p2 = h.session.save(new Uint8Array([2]));
+  await h.flush();
+  assert.deepEqual(h.f.calls.filter((c) => c.startsWith('save:')), ['save:1'], '첫 저장이 끝나기 전엔 두 번째를 보내지 않는다');
+  first.resolve({ version: 2 });
+  assert.equal(await p1, 'saved');
+  assert.equal(await p2, 'saved');
+  assert.deepEqual(h.f.calls.filter((c) => c.startsWith('save:')), ['save:1', 'save:2']);
+  assert.equal(open(h.session.state).baseVersion, 3);
+});
+
+test('저장 직전 박동으로 잠금을 확인 — 빼앗겼으면 보내지 않고 lost-lock, 보는 사람으로', async () => {
+  const h = harness(meta());
+  await h.session.open(TOK, null);
+  h.f.ctl.heartbeatResult = false;
+  assert.equal(await h.session.save(new Uint8Array([1])), 'lost-lock');
+  assert.equal(h.f.calls.some((c) => c.startsWith('save:')), false);
+  assert.equal(open(h.session.state).role, 'viewer');
+});
+
+test('새 버전 다시 열기는 한 번에 하나씩 — 빠르게 두 버전이 와도 겹치지 않고 마지막이 v3', async () => {
+  let running = 0;
+  let maxRunning = 0;
+  const gates: Array<ReturnType<typeof deferred>> = [];
+  const h = harness(meta({ access: 'view' }), 10_000_000, async () => {
+    running += 1;
+    maxRunning = Math.max(maxRunning, running);
+    const g = deferred();
+    gates.push(g);
+    await g.promise;
+    running -= 1;
+  });
+  await h.session.open(TOK, null);
+  h.f.emit(meta({ access: 'view', version: 2 }));
+  await h.flush();
+  h.f.emit(meta({ access: 'view', version: 3 }));
+  await h.flush();
+  assert.equal(gates.length, 1, '첫 다시 열기가 끝나기 전엔 다음을 시작하지 않는다');
+  assert.equal(open(h.session.state).baseVersion, 1, '열기가 끝나기 전엔 기준 버전을 올리지 않는다');
+  gates[0].resolve();
+  await h.flush(); await h.flush();
+  assert.equal(gates.length, 2);
+  gates[1].resolve();
+  await h.flush(); await h.flush();
+  assert.equal(maxRunning, 1);
+  assert.equal(open(h.session.state).baseVersion, 3);
+});
+
+test('새 버전 열기가 실패하면 기준 버전을 올리지 않는다(덮어쓰기 방지)', async () => {
+  const h = harness(meta({ access: 'view' }), 10_000_000, async () => { throw new Error('parse failed'); });
+  await h.session.open(TOK, null);
+  h.f.emit(meta({ access: 'view', version: 2 }));
+  await h.flush(); await h.flush();
+  assert.equal(open(h.session.state).baseVersion, 1);
 });

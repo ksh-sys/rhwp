@@ -901,6 +901,8 @@ export function onKeyDown(this: any, e: KeyboardEvent): void {
   // ─── 머리말/꼬리말 편집 모드 키보드 처리 ──────────────────
   if (this.cursor.isInHeaderFooter()) {
     if (dispatchSubmodeGlobalShortcut.call(this, e)) return;
+    // 보기 전용: 머리말·각주 안에서는 Esc(빠져나오기)만 — 이 갈래는 wasm 을 직접 고친다
+    if (this.isViewMode?.() && e.key !== 'Escape') return;
 
     // 선택이 있는 Esc는 선택만 해제한다. Shift+Esc 또는 선택 없는 Esc는 모드 탈출.
     if (e.key === 'Escape') {
@@ -1012,6 +1014,8 @@ export function onKeyDown(this: any, e: KeyboardEvent): void {
   // ─── 각주 편집 모드 키보드 처리 ──────────────────────────
   if (this.cursor.isInFootnote()) {
     if (dispatchSubmodeGlobalShortcut.call(this, e)) return;
+    // 보기 전용: 머리말·각주 안에서는 Esc(빠져나오기)만 — 이 갈래는 wasm 을 직접 고친다
+    if (this.isViewMode?.() && e.key !== 'Escape') return;
 
     // Shift+Esc 또는 Escape → 주석 편집 모드 탈출
     if (e.key === 'Escape') {
@@ -1147,6 +1151,8 @@ export function onKeyDown(this: any, e: KeyboardEvent): void {
       this.updateCaret();
       return;
     }
+    // 보기 전용: 개체 선택 중 화살표 이동·크기·지우기·글상자 진입 모두 안 함
+    if (this.isViewMode?.()) return;
     // Enter → 글상자 내부 텍스트 편집 진입
     if (e.key === 'Enter') {
       const ref = this.cursor.getSelectedPictureRef();
@@ -1225,6 +1231,8 @@ export function onKeyDown(this: any, e: KeyboardEvent): void {
       // this.checkTransparentBordersTransition();
       return;
     }
+    // 보기 전용: 표 개체 선택 중 화살표 이동·지우기 등은 안 함
+    if (this.isViewMode?.()) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       // 표 객체 선택 → 셀 편집 복귀

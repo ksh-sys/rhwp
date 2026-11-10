@@ -88,3 +88,16 @@ test('saveCurrentDocument 첫 분기가 공유 세션 저장이고, 문구 키�
     for (const k of ['share.saved.text', 'share.saveFailed.text', 'share.tooLarge.text']) assert.ok(src.includes(`"${k}"`), `${loc}: ${k}`);
   }
 });
+
+
+test('잠금을 빼앗겨 저장 못 함 — failed, 전용 안내(다른 이름으로 저장 권유), clean 하지 않음', async () => {
+  const log: string[] = [];
+  const d: ShareSaveDeps = {
+    session: { get state() { return editorState(); }, async save() { return 'lost-lock' as const; } },
+    prepare: () => {}, exportBytes: () => new Uint8Array(3),
+    markClean: (r) => log.push(`clean:${r}`), notify: (m) => log.push(`notify:${m}`), toast: (m) => log.push(`toast:${m}`),
+    t: (k) => k,
+  };
+  assert.equal(await saveToShare(d), 'failed');
+  assert.deepEqual(log, ['toast:share.lockLost.text']);
+});

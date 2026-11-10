@@ -156,6 +156,7 @@ export class ShareManageDialog extends ModalDialog {
         b.className = 'dialog-btn';
         b.textContent = t('dialog.shareManage.restore');
         b.addEventListener('click', async () => {
+          if (!(await showConfirm(t('dialog.shareManage.restore'), t('dialog.shareManage.restoreConfirm', { p1: v.version })))) return;
           b.disabled = true;
           try {
             await this.opts.restore(v.version);

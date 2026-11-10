@@ -989,8 +989,8 @@ export function onClick(this: any, e: MouseEvent): void {
     } catch { /* 무시 */ }
   }
 
-  // 본문 각주 마커 클릭 → 각주 편집 모드 진입
-  if (!this.cursor.isInFootnote()) {
+  // 본문 각주 마커 클릭 → 각주 편집 모드 진입 (보기 전용은 진입하지 않음)
+  if (!this.cursor.isInFootnote() && !this.isViewMode?.()) {
     try {
       const markerHit = this.wasm.hitTestBodyFootnoteMarker(pageIdx, pageX, pageY);
       if (

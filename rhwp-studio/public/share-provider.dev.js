@@ -6,7 +6,7 @@
  * 계약: rhwp-studio/docs/share-provider.md
  */
 const PREFIX = 'rhwp-dev-share:';
-const LOCK_TTL_MS = 30 * 60_000;
+const LOCK_TTL_MS = 5 * 60_000; // 박동이 5분 끊기면 비어 있음(편집기는 1분마다 박동)
 
 const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, '0')).join('');
 

@@ -30,9 +30,9 @@ localStorage 로 공유하는 시험용 제공자다.
 |---|---|
 | `create(bytes, name, settings)` | 공유본 v1 을 만든다. `{ token, adminKey }` — 둘 다 16바이트 난수 hex 32자. 만들기에 로그인이 필요하면 `ShareAuthRequiredError` |
 | `open(token)` | `{ meta, bytes }` — 최신 버전. 없는 토큰이면 `ShareGoneError`. 회수·만료는 `meta.revoked`·`meta.expiresAt` 로 알린다 |
-| `save(token, bytes, baseVersion, by)` | `baseVersion` 이 최신일 때만 새 버전을 쓴다. `{ version }`. 아니면 `ShareConflictError(serverVersion)`, 끝난 공유면 `ShareGoneError` |
+| `save(token, bytes, baseVersion, by)` | `baseVersion` 이 최신이고 **잠금 주인이 `by` 일 때만** 새 버전을 쓴다. `{ version }`. 기준 버전이 낡았거나 잠금 주인이 아니면 `ShareConflictError(serverVersion)`, 끝난 공유면 `ShareGoneError`. 서버(저장소 규칙)가 직접 강제해야 한다 — 편집기의 보기 전용 모드는 화면 동작일 뿐이다 |
 | `watch(token, cb)` | 메타가 바뀔 때마다 `cb(meta)`. 구독 해제 함수를 돌려준다 |
-| `lock(token, by)` | 편집 잠금. 비었거나 내 것이거나 마지막 심장박동이 30분 넘게 지났으면 잡고 `true` |
+| `lock(token, by)` | 편집 잠금. 비었거나 내 것이거나 마지막 심장박동이 **5분** 넘게 지났으면 잡고 `true` |
 | `heartbeat(token, by)` | 내 잠금이면 시각을 갱신하고 `true`, 아니면 `false` |
 | `unlock(token, by)` | 내 잠금이면 푼다 |
 | `updateSettings(token, adminKey, settings)` | 권한(`access`)·만료(`expiresAt`) 변경 |
@@ -65,7 +65,8 @@ throw Object.assign(new Error('conflict'), { name: 'ShareConflictError', serverV
 
 - 공유 링크: `<편집기 주소>?share=<token>`. 관리 링크: 거기에 `#admin=<adminKey>`(fragment 라 서버로 가지 않는다).
   관리키는 만든 브라우저의 localStorage 에도 저장되고, 관리 링크로 열면 주소창에서 지운다.
-- 편집자는 60초마다 `heartbeat`, 30분 동안 입력이 없으면 보내지 않는다(잠금이 저절로 만료).
+- 편집자는 60초마다 `heartbeat`, 30분 동안 입력이 없으면 보내지 않는다. 박동이 5분 끊긴 잠금은 비어 있다 —
+  자리 비움은 약 35분, 창을 닫으면 5분 뒤 다른 사람이 이어받는다. 저장 직전에도 `heartbeat` 로 잠금을 확인한다.
 - 「편집 가능」 링크라도 남이 잠금을 쥐고 있으면 보기 전용 + 「○○ 님이 편집 중」 띠, 그 사람이 저장하면 새 버전이 자동으로 열린다.
 - 편집자의 「저장」(Ctrl+S)은 PC 파일이 아니라 `save` 다. 다른 이름으로 저장은 그대로 내려받기.
 - 공유본 상한 20MB.
