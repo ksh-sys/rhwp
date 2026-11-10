@@ -307,3 +307,15 @@ test('닫기 — 잠금 해제·구독 해제·타이머 정리 후 idle', async
   assert.equal(h.timers.size, 0);
   assert.equal(h.session.state.kind, 'idle');
 });
+
+test('제공자는 별도 모듈 — 오류 이름(name)만 같아도 충돌·끝남으로 알아본다', async () => {
+  const h = harness(meta());
+  await h.session.open(TOK, null);
+  h.f.ctl.saveImpl = async () => { throw Object.assign(new Error('x'), { name: 'ShareConflictError', serverVersion: 7 }); };
+  assert.equal(await h.session.save(new Uint8Array([1])), 'conflict');
+  assert.equal((h.session.state as Extract<SessionState, { kind: 'conflict' }>).serverVersion, 7);
+  const g = harness(meta());
+  g.f.provider.open = async () => { throw Object.assign(new Error('gone'), { name: 'ShareGoneError' }); };
+  assert.equal(await g.session.open(TOK, null), null);
+  assert.equal(g.session.state.kind, 'gone');
+});

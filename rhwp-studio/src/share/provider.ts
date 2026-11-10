@@ -72,6 +72,27 @@ export class ShareAuthRequiredError extends Error {
   }
 }
 
+/**
+ * 제공자는 별도로 빌드된 모듈이라 이 파일의 클래스를 import 하지 못한다 — 오류는 `name` 으로
+ * 알아본다(계약: 충돌은 name 'ShareConflictError' + serverVersion, 끝남은 'ShareGoneError',
+ * 로그인 필요는 'ShareAuthRequiredError' + loginUrl?).
+ */
+export function isShareConflictError(e: unknown): e is { name: string; serverVersion: number } {
+  return e instanceof ShareConflictError
+    || (!!e && typeof e === 'object' && (e as { name?: unknown }).name === 'ShareConflictError'
+      && typeof (e as { serverVersion?: unknown }).serverVersion === 'number');
+}
+
+export function isShareGoneError(e: unknown): boolean {
+  return e instanceof ShareGoneError
+    || (!!e && typeof e === 'object' && (e as { name?: unknown }).name === 'ShareGoneError');
+}
+
+export function isShareAuthRequiredError(e: unknown): e is { name: string; loginUrl?: string } {
+  return e instanceof ShareAuthRequiredError
+    || (!!e && typeof e === 'object' && (e as { name?: unknown }).name === 'ShareAuthRequiredError');
+}
+
 export interface ShareProvider {
   create(bytes: Uint8Array, name: string, settings: ShareSettings): Promise<{ token: string; adminKey: string }>;
   open(token: string): Promise<ShareOpenResult>;

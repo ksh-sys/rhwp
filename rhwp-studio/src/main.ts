@@ -117,6 +117,8 @@ import type { EmbedRendererRuntimeRequestV1 } from '@/embed/rpc-router';
 import { enrichFontDecisionTrace } from '@/core/font-decision-trace';
 import { DocumentAgentController } from '@/document-agent/controller';
 import { initI18n, t } from '@/i18n/index.ts';
+import { loadShareProvider, providerUrlFromDocument } from '@/share/provider-loader';
+import { installShareRuntime, type ShareRuntime } from '@/share/share-runtime';
 
 // 언어팩 초기화 — 정적 마크업의 라벨을 결정된 로케일로 갱신한다. 카탈로그에 없는 키는
 // 원문(ko)으로 물러나므로 번역이 없는 상태에서도 화면은 도입 전과 같다.
@@ -299,6 +301,27 @@ const commandServices: CommandServices = {
 };
 
 const dispatcher = new CommandDispatcher(registry, commandServices, eventBus);
+
+// 링크 공유 제공자 — 빌드에 <meta name="rhwp-share-provider"> 가 있을 때만 백그라운드로 불러온다.
+// 없거나 불러오지 못하면 공유 메뉴가 숨겨지고 나머지 편집기 동작은 그대로다.
+const shareProviderPromise = (() => {
+  let url = providerUrlFromDocument(document, document.baseURI);
+  // 개발 서버 전용: ?shareProvider=./share-provider.dev.js 로 같은 출처의 제공자를 시험한다.
+  // 운영 빌드에서는 이 분기가 통째로 빠져 주소로 임의 모듈을 불러올 수 없다.
+  if (import.meta.env.DEV) {
+    const q = new URLSearchParams(location.search).get('shareProvider');
+    if (q) {
+      const u = new URL(q, document.baseURI);
+      if (u.origin === location.origin) url = u.href;
+    }
+  }
+  if (!url) {
+    console.info('[share] 공유 제공자 없음 — 링크 공유 기능 숨김');
+    return Promise.resolve(null);
+  }
+  return loadShareProvider(url);
+})();
+let shareRuntime: ShareRuntime | null = null;
 
 // 자동화 표면 — 외부 JavaScript 가 커맨드·메뉴를 다루는 자리. 실행은 메뉴·툴바·키보드와 같은
 // dispatcher 를 타므로 게이트가 갈리지 않는다. 메뉴 컨테이너는 이 시점에 아직 없을 수 있어
@@ -960,6 +983,17 @@ async function initialize(): Promise<void> {
       });
     }
 
+    shareRuntime = installShareRuntime({
+      providerPromise: shareProviderPromise,
+      eventBus,
+      loadBytes: (bytes, name) => loadBytes(bytes, name, null, performance.now(), { skipRecent: true }),
+      setEditMode,
+      getEditMode: () => editMode,
+      isDirty: () => documentState.isDirty(),
+      dispatch: (id) => dispatcher.dispatch(id),
+      setStatus: (text) => { sbMessage().textContent = text; },
+    });
+    (window as any).rhwpStudio.share = shareRuntime;
     setupFileInput();
     setupZoomControls();
     setupEventListeners();
@@ -969,6 +1003,7 @@ async function initialize(): Promise<void> {
     // 먼저 갖고, 아무도 열지 않았을 때만 빈 문서를 연다.
     void (async () => {
       await loadFromUrlParam();
+      await loadFromShareParam();
       // embed 프로파일: 자동저장 복구 다이얼로그의 드래프트 복원도 호스트가 감지할 수
       // 없는 문서 교체 경로이므로 띄우지 않는다 (드래프트 기록 자체는 유지).
       if (chromeMode !== 'embed') await offerAutosaveRecoveryIfIdle();
@@ -1911,7 +1946,7 @@ async function renderRecentSubmenu(): Promise<void> {
 
 function shouldSkipInitialAutosaveRecovery(): boolean {
   const params = new URLSearchParams(window.location.search);
-  return params.has('url');
+  return params.has('url') || params.has('share');
 }
 
 async function offerAutosaveRecoveryIfIdle(): Promise<void> {
@@ -1959,6 +1994,7 @@ async function createNewDocument(): Promise<void> {
   try {
     await withBusyCursor(document.documentElement, async () => {
       msg.textContent = '새 문서 생성 중...';
+      await shareRuntime?.leave();
       const docInfo = wasm.createNewDocument(userSettings.getNewDocPageDef());
       prepareCanvasRendererDocument();
       plugins.notifyDocumentSwap();
@@ -1982,6 +2018,7 @@ async function createNewDocument(): Promise<void> {
  */
 async function openBlankDocumentIfIdle(): Promise<void> {
   if (chromeMode === 'embed') return;
+  if (shareRuntime?.goneShown) return; // 끝난 공유 안내 화면을 빈 문서로 덮지 않는다
   if (wasm.pageCount > 0 || documentState.isDirty()) return;
   await createNewDocument();
 }
@@ -2047,6 +2084,11 @@ eventBus.on('chart-data-edit-request', () => {
  * URL 파라미터(?url=)로 전달된 HWP 파일을 자동 로드한다.
  * Chrome 확장 프로그램에서 뷰어 탭을 열 때 사용.
  */
+/** `?share=<토큰>` 공유 링크로 열기 — 런타임이 제공자·세션·보기 전용 전환을 맡는다 */
+async function loadFromShareParam(): Promise<void> {
+  await shareRuntime?.loadFromShareParam();
+}
+
 async function loadFromUrlParam(): Promise<void> {
   const params = new URLSearchParams(window.location.search);
   const fileUrl = params.get('url');

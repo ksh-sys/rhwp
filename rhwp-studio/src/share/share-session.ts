@@ -6,7 +6,7 @@
  * 최신일 때만 받아들여지고(제공자 책임), 아니면 충돌로 끝난다 — 자리 비운 사이 남이 저장한 문서를
  * 덮어쓰지 않는다.
  */
-import { ShareConflictError, ShareGoneError } from './provider.ts';
+import { isShareConflictError, isShareGoneError } from './provider.ts';
 import type { ShareLock, ShareMeta, ShareProvider } from './provider.ts';
 
 export const HEARTBEAT_MS = 60_000;
@@ -89,7 +89,7 @@ export class ShareSession {
     try {
       res = await this.deps.provider.open(token);
     } catch (e) {
-      if (e instanceof ShareGoneError) {
+      if (isShareGoneError(e)) {
         this.toGone(token);
         return null;
       }
@@ -145,13 +145,13 @@ export class ShareSession {
       this.lastActivity = this.deps.now();
       return 'saved';
     } catch (e) {
-      if (e instanceof ShareConflictError) {
+      if (isShareConflictError(e)) {
         this.stopHeartbeat();
         void this.deps.provider.unlock(s.token, this.deps.by).catch(() => {});
         this.set({ kind: 'conflict', token: s.token, meta: s.meta, serverVersion: e.serverVersion, adminKey: s.adminKey });
         return 'conflict';
       }
-      if (e instanceof ShareGoneError) this.toGone(s.token);
+      if (isShareGoneError(e)) this.toGone(s.token);
       return 'failed';
     }
   }
@@ -164,7 +164,7 @@ export class ShareSession {
     try {
       res = await this.deps.provider.open(s.token);
     } catch (e) {
-      if (e instanceof ShareGoneError) {
+      if (isShareGoneError(e)) {
         this.toGone(s.token);
         return null;
       }
@@ -337,7 +337,7 @@ export class ShareSession {
     try {
       res = await this.deps.provider.open(token);
     } catch (e) {
-      if (e instanceof ShareGoneError) this.toGone(token);
+      if (isShareGoneError(e)) this.toGone(token);
       return;
     }
     const cur = this.openState();
