@@ -72,3 +72,10 @@ test('제공자 계약 문서가 있고 조직 이름이 없다', () => {
   assert.match(doc, /RHWP_SHARE_PROVIDER/);
   assert.doesNotMatch(doc, /kossa|협회|firebase/i);
 });
+
+test('운영 빌드 결과물에서는 개발 제공자 파일을 지운다', () => {
+  const src = read('vite.config.ts');
+  assert.match(src, /name: 'drop-dev-share-provider'/);
+  assert.match(src, /apply: 'build'/);
+  assert.match(src, /share-provider\.dev\.js/);
+});

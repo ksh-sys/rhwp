@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve, extname, join } from 'path';
-import { readFileSync, readFile } from 'fs';
+import { readFileSync, readFile, rmSync } from 'fs';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const configDir = import.meta.dirname;
@@ -78,6 +78,14 @@ export default defineConfig({
   plugins: [
     // 공유 제공자 모듈 주소 — 있으면 <meta name="rhwp-share-provider"> 로 박혀 기동 시 import() 된다.
     // 없으면 메타도 없고 공유 메뉴는 숨겨진다(업스트림 기본 동작 유지).
+    // public/share-provider.dev.js 는 개발 서버 전용 시험 제공자 — 운영 결과물에는 남기지 않는다
+    {
+      name: 'drop-dev-share-provider',
+      apply: 'build',
+      closeBundle() {
+        rmSync(resolve(configDir, 'dist', 'share-provider.dev.js'), { force: true });
+      },
+    },
     {
       name: 'share-provider-meta',
       transformIndexHtml() {
