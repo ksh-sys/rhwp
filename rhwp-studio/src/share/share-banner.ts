@@ -6,7 +6,7 @@ import type { SessionState } from './share-session.ts';
 import { lockExpired } from './share-session.ts';
 import { displayNameOf } from './share-link.ts';
 
-export type BannerActionKind = 'takeover' | 'download' | 'reload';
+export type BannerActionKind = 'start' | 'stop' | 'download' | 'reload';
 
 export interface BannerModel {
   text: string;
@@ -25,7 +25,10 @@ export const BANNER_KEYS = [
   'share.banner.checking',
   'share.banner.newVersion',
   'share.banner.gone',
-  'share.action.takeover',
+  'share.banner.editing',
+  'share.banner.canEdit',
+  'share.action.start',
+  'share.action.stop',
   'share.action.download',
   'share.action.reload',
 ] as const;
@@ -54,7 +57,9 @@ export function bannerModel(state: SessionState, now: number, t: T): BannerModel
       tone: 'warn',
     };
   }
-  if (state.role === 'editor') return null;
+  if (state.role === 'editor') {
+    return { text: t('share.banner.editing'), actions: [action('stop')], fullscreen: false, tone: 'info' };
+  }
 
   if (state.meta.access === 'view') {
     return { text: t('share.banner.viewOnly'), actions: [action('download')], fullscreen: false, tone: 'info' };
@@ -63,12 +68,13 @@ export function bannerModel(state: SessionState, now: number, t: T): BannerModel
   if (state.lockedBy && lock && lock.by === state.lockedBy) {
     const name = displayNameOf(state.lockedBy);
     if (lockExpired(lock, now)) {
-      return { text: t('share.banner.lockStale', { p1: name }), actions: [action('takeover')], fullscreen: false, tone: 'info' };
+      return { text: t('share.banner.lockStale', { p1: name }), actions: [action('start')], fullscreen: false, tone: 'info' };
     }
     const minutes = Math.max(0, Math.floor((now - (state.lockedSince ?? lock.since)) / 60_000));
     return { text: t('share.banner.lockedBy', { p1: name, p2: minutes }), actions: [], fullscreen: false, tone: 'info' };
   }
-  return { text: t('share.banner.checking'), actions: [], fullscreen: false, tone: 'info' };
+  // 편집 가능하고 아무도 편집하지 않는다 — 고치려면 [편집 시작]
+  return { text: t('share.banner.canEdit'), actions: [action('start')], fullscreen: false, tone: 'info' };
 }
 
 export interface ChipModel {

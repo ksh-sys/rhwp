@@ -22,10 +22,21 @@ function openState(over: Partial<Extract<SessionState, { kind: 'open' }>> = {}):
   return { kind: 'open', token: TOK, meta: meta(), role: 'editor', lockHeld: true, baseVersion: 1, dirty: false, by: '나#a', adminKey: null, ...over };
 }
 
-test('띠 없음 — 대기·여는 중·내가 편집 중', () => {
+test('띠 없음 — 대기·여는 중', () => {
   assert.equal(bannerModel({ kind: 'idle' }, NOW, t), null);
   assert.equal(bannerModel({ kind: 'opening', token: TOK }, NOW, t), null);
-  assert.equal(bannerModel(openState(), NOW, t), null);
+});
+
+test('내가 편집 중 — 안내 + [편집 마치기]', () => {
+  const m = bannerModel(openState(), NOW, t)!;
+  assert.equal(m.text, 'share.banner.editing');
+  assert.deepEqual(m.actions.map((a) => a.kind), ['stop']);
+});
+
+test('편집 가능한데 아무도 편집 안 함 — [편집 시작]', () => {
+  const m = bannerModel(openState({ role: 'viewer', lockHeld: false }), NOW, t)!;
+  assert.equal(m.text, 'share.banner.canEdit');
+  assert.deepEqual(m.actions.map((a) => a.kind), ['start']);
 });
 
 test('보기 권한 — 보기 전용 안내 + 내려받기', () => {
@@ -46,12 +57,7 @@ test('남의 잠금이 30분 넘게 조용함 — 이어서 편집', () => {
   const lock = { by: '김팀장#bbbbbb', since: NOW - 90 * MIN, heartbeatAt: NOW - 31 * MIN };
   const m = bannerModel(openState({ role: 'viewer', lockHeld: false, meta: meta({ lock }), lockedBy: lock.by, lockedSince: lock.since }), NOW, t)!;
   assert.equal(m.text, 'share.banner.lockStale|p1=김팀장');
-  assert.deepEqual(m.actions.map((a) => a.kind), ['takeover']);
-});
-
-test('편집 권한인데 잠금 확인 중(주인 미상)', () => {
-  const m = bannerModel(openState({ role: 'viewer', lockHeld: false }), NOW, t)!;
-  assert.equal(m.text, 'share.banner.checking');
+  assert.deepEqual(m.actions.map((a) => a.kind), ['start']);
 });
 
 test('수정 중에 남이 새 버전 저장 / 저장 충돌 — 내려받기 + 최신본 열기', () => {

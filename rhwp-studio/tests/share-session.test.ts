@@ -70,6 +70,10 @@ function harness(initial: ShareMeta, now0 = 10_000_000, onNew?: (bytes: Uint8Arr
 type OpenState = Extract<SessionState, { kind: 'open' }>;
 const open = (s: SessionState): OpenState => { assert.equal(s.kind, 'open'); return s as OpenState; };
 const count = (calls: string[], name: string) => calls.filter((c) => c === name).length;
+async function openEditing(h: ReturnType<typeof harness>) {
+  await h.session.open(TOK, null);
+  assert.equal(await h.session.startEditing(), true);
+}
 
 test('lockExpired / roleFor', () => {
   const now = 100 * MIN;
@@ -86,17 +90,22 @@ test('lockExpired / roleFor', () => {
   assert.equal(roleFor(meta({ lock: { by: OTHER, since: 0, heartbeatAt: now - 31 * MIN } }), ME, now), 'editor');
 });
 
-test('열기 — 편집 권한·잠금 없음이면 편집자: 잠금 1회, 심장박동 등록, 구독, 바이트 반환', async () => {
+test('열기만으로는 잠금을 잡지 않는다 — 편집 권한이어도 보기로 열리고, [편집 시작]을 눌러야 편집자', async () => {
   const h = harness(meta());
   const bytes = await h.session.open(TOK, 'adm');
   assert.deepEqual(Array.from(bytes!), [1]);
   const s = open(h.session.state);
-  assert.equal(s.role, 'editor');
-  assert.equal(s.lockHeld, true);
-  assert.equal(s.baseVersion, 1);
+  assert.equal(s.role, 'viewer');
+  assert.equal(s.lockHeld, false);
   assert.equal(s.adminKey, 'adm');
-  assert.equal(h.f.calls.filter((c) => c.startsWith('lock:')).length, 1);
+  assert.equal(h.f.calls.some((c) => c.startsWith('lock:')), false);
   assert.ok(h.f.calls.includes('watch'));
+  assert.equal(h.timers.size, 0);
+  assert.equal(await h.session.startEditing(), true);
+  const e = open(h.session.state);
+  assert.equal(e.role, 'editor');
+  assert.equal(e.lockHeld, true);
+  assert.equal(h.f.calls.filter((c) => c.startsWith('lock:')).length, 1);
   assert.equal(h.timers.size, 1);
   assert.equal([...h.timers.values()][0].ms, HEARTBEAT_MS);
 });
@@ -109,24 +118,28 @@ test('열기 — 보기 권한이면 보는 사람, 잠금 시도 없음', async
   assert.equal(h.timers.size, 0);
 });
 
-test('열기 — 남이 5분 전까지 편집 중이면 보는 사람(lockedBy 표시), 31분 전이면 이어받아 편집자', async () => {
+test('열기 — 남이 편집 중이면 [편집 시작]이 거절되고, 박동이 끊긴 잠금이면 이어받는다', async () => {
   const now0 = 10_000_000;
-  const h1 = harness(meta({ lock: { by: OTHER, since: now0 - 20 * MIN, heartbeatAt: now0 - 5 * MIN } }), now0);
+  const h1 = harness(meta({ lock: { by: OTHER, since: now0 - 20 * MIN, heartbeatAt: now0 - 3 * MIN } }), now0);
   await h1.session.open(TOK, null);
   const s1 = open(h1.session.state);
   assert.equal(s1.role, 'viewer');
   assert.equal(s1.lockedBy, OTHER);
   assert.equal(s1.lockedSince, now0 - 20 * MIN);
+  assert.equal(await h1.session.startEditing(), false);
+  assert.equal(h1.f.calls.some((c) => c.startsWith('lock:')), false);
   const h2 = harness(meta({ lock: { by: OTHER, since: 0, heartbeatAt: now0 - 31 * MIN } }), now0);
   await h2.session.open(TOK, null);
+  assert.equal(open(h2.session.state).role, 'viewer');
+  assert.equal(await h2.session.startEditing(), true);
   assert.equal(open(h2.session.state).role, 'editor');
-  assert.equal(open(h2.session.state).lockHeld, true);
 });
 
-test('열기 — 잠금 경쟁에서 지면 보는 사람', async () => {
+test('[편집 시작] — 잠금 경쟁에서 지면 보는 사람 그대로', async () => {
   const h = harness(meta());
   h.f.ctl.lockResult = false;
   await h.session.open(TOK, null);
+  assert.equal(await h.session.startEditing(), false);
   const s = open(h.session.state);
   assert.equal(s.role, 'viewer');
   assert.equal(s.lockHeld, false);
@@ -148,7 +161,7 @@ test('열기 — 끝난 공유(회수·만료·없음)는 gone, 바이트 null',
 
 test('심장박동 — 틱마다 보내고, 마지막 활동 30분 뒤엔 멈췄다가 활동하면 즉시 다시 확인', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   await h.tick();
   assert.equal(count(h.f.calls, 'heartbeat'), 1);
   h.advance(31 * MIN);
@@ -165,7 +178,7 @@ test('심장박동 — 틱마다 보내고, 마지막 활동 30분 뒤엔 멈췄
 
 test('자리 비운 사이 남이 잠금을 가져갔으면 돌아왔을 때 보는 사람으로 바뀌고 저장은 거부', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.advance(31 * MIN);
   await h.tick();
   h.f.ctl.heartbeatResult = false;
@@ -199,7 +212,7 @@ test('구독 — 새 버전 & 수정 없음이면 최신본을 받아 onNewVersi
 
 test('구독 — 내가 방금 저장한 버전 알림은 다시 불러오지 않는다', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   await h.session.save(new Uint8Array([1]));
   h.f.emit(meta({ version: 2, lock: { by: ME, since: 0, heartbeatAt: h.now } }));
   await h.flush();
@@ -208,7 +221,7 @@ test('구독 — 내가 방금 저장한 버전 알림은 다시 불러오지 �
 
 test('구독 — 회수되면 gone 으로 바뀌고 타이머·구독 정리', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.f.emit(meta({ revoked: true }));
   await h.flush();
   assert.equal(h.session.state.kind, 'gone');
@@ -216,15 +229,15 @@ test('구독 — 회수되면 gone 으로 바뀌고 타이머·구독 정리', a
   assert.ok(h.f.calls.includes('unwatch'));
 });
 
-test('구독 — 남의 잠금이 풀리면 편집 권한일 때 자동으로 잠금을 잡는다, 권한이 보기로 바뀌면 놓는다', async () => {
+test('구독 — 남의 잠금이 풀려도 자동으로 잡지 않는다(읽기만 하는 사람이 남을 막지 않게), 권한이 보기로 바뀌면 내 잠금을 놓는다', async () => {
   const now0 = 10_000_000;
   const h = harness(meta({ lock: { by: OTHER, since: now0, heartbeatAt: now0 } }), now0);
   await h.session.open(TOK, null);
-  assert.equal(open(h.session.state).role, 'viewer');
   h.f.emit(meta({ lock: null }));
   await h.flush();
-  assert.equal(open(h.session.state).role, 'editor');
-  assert.equal(open(h.session.state).lockHeld, true);
+  assert.equal(open(h.session.state).role, 'viewer');
+  assert.equal(h.f.calls.some((c) => c.startsWith('lock:')), false);
+  assert.equal(await h.session.startEditing(), true);
   h.f.emit(meta({ access: 'view', lock: { by: ME, since: now0, heartbeatAt: now0 } }));
   await h.flush();
   assert.equal(open(h.session.state).role, 'viewer');
@@ -234,7 +247,7 @@ test('구독 — 남의 잠금이 풀리면 편집 권한일 때 자동으로 �
 
 test('구독 — 늦게 온 옛 알림이 남의 잠금을 보여도, 심장박동이 내 잠금을 확인하면 편집자를 유지한다', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.f.emit(meta({ lock: { by: OTHER, since: h.now, heartbeatAt: h.now } }));
   await h.flush();
   const s = open(h.session.state);
@@ -246,7 +259,7 @@ test('구독 — 늦게 온 옛 알림이 남의 잠금을 보여도, 심장박�
 
 test('구독 — 내 잠금을 남이 가져가면(서버 기준, 심장박동 거부) 보는 사람으로', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.f.ctl.heartbeatResult = false;
   h.f.emit(meta({ lock: { by: OTHER, since: h.now, heartbeatAt: h.now } }));
   await h.flush();
@@ -259,7 +272,7 @@ test('구독 — 내 잠금을 남이 가져가면(서버 기준, 심장박동 �
 
 test('저장 — 성공하면 baseVersion 갱신·dirty 해제, 기타 오류는 failed(상태 유지), 충돌이면 conflict', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.session.setDirty(true);
   assert.equal(await h.session.save(new Uint8Array([1])), 'saved');
   assert.equal(open(h.session.state).baseVersion, 2);
@@ -281,7 +294,7 @@ test('저장 — 성공하면 baseVersion 갱신·dirty 해제, 기타 오류는
 
 test('저장 — 저장 중 회수되면(ShareGoneError) gone', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.f.ctl.saveImpl = async () => { throw new ShareGoneError(); };
   assert.equal(await h.session.save(new Uint8Array([1])), 'failed');
   assert.equal(h.session.state.kind, 'gone');
@@ -289,7 +302,7 @@ test('저장 — 저장 중 회수되면(ShareGoneError) gone', async () => {
 
 test('최신본 열기(reloadLatest) — 충돌 상태에서 최신본을 받아 열린 상태로 돌아온다', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.f.ctl.saveImpl = async () => { throw new ShareConflictError(4); };
   await h.session.save(new Uint8Array([1]));
   h.f.setMeta(meta({ version: 4, lock: { by: ME, since: 0, heartbeatAt: h.now } }));
@@ -314,7 +327,7 @@ test('이어서 편집(takeOver) — 남의 잠금이 만료됐을 때만 잡는
 
 test('닫기 — 잠금 해제·구독 해제·타이머 정리 후 idle', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   await h.session.close();
   assert.ok(h.f.calls.includes('unlock'));
   assert.ok(h.f.calls.includes('unwatch'));
@@ -324,7 +337,7 @@ test('닫기 — 잠금 해제·구독 해제·타이머 정리 후 idle', async
 
 test('제공자는 별도 모듈 — 오류 이름(name)만 같아도 충돌·끝남으로 알아본다', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.f.ctl.saveImpl = async () => { throw Object.assign(new Error('x'), { name: 'ShareConflictError', serverVersion: 7 }); };
   assert.equal(await h.session.save(new Uint8Array([1])), 'conflict');
   assert.equal((h.session.state as Extract<SessionState, { kind: 'conflict' }>).serverVersion, 7);
@@ -352,7 +365,7 @@ test('잠금 만료는 박동 5분 끊김 — 30분 무입력으로 박동이 �
 
 test('저장 겹침 — 두 번째 저장은 첫 저장이 끝난 뒤 새 기준 버전으로 이어서 보낸다(가짜 충돌 없음)', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   const first = deferred<{ version: number }>();
   let calls = 0;
   h.f.ctl.saveImpl = async (base) => {
@@ -373,7 +386,7 @@ test('저장 겹침 — 두 번째 저장은 첫 저장이 끝난 뒤 새 기준
 
 test('저장 직전 박동으로 잠금을 확인 — 빼앗겼으면 보내지 않고 lost-lock, 보는 사람으로', async () => {
   const h = harness(meta());
-  await h.session.open(TOK, null);
+  await openEditing(h);
   h.f.ctl.heartbeatResult = false;
   assert.equal(await h.session.save(new Uint8Array([1])), 'lost-lock');
   assert.equal(h.f.calls.some((c) => c.startsWith('save:')), false);
@@ -414,4 +427,39 @@ test('새 버전 열기가 실패하면 기준 버전을 올리지 않는다(덮
   h.f.emit(meta({ access: 'view', version: 2 }));
   await h.flush(); await h.flush();
   assert.equal(open(h.session.state).baseVersion, 1);
+});
+
+
+// ─── 편집 시작·마치기 ─────────────────────────────
+
+test('새로고침한 같은 탭(잠금 주인이 나)이면 열 때 이어서 편집', async () => {
+  const now0 = 10_000_000;
+  const h = harness(meta({ lock: { by: ME, since: now0 - MIN, heartbeatAt: now0 - MIN } }), now0);
+  await h.session.open(TOK, null);
+  assert.equal(open(h.session.state).role, 'editor');
+});
+
+test('[편집 마치기] — 저장 안 한 수정이 있으면 거절, 없으면 잠금을 놓고 보기로', async () => {
+  const h = harness(meta());
+  await openEditing(h);
+  h.session.setDirty(true);
+  assert.equal(await h.session.stopEditing(), 'dirty');
+  assert.equal(open(h.session.state).lockHeld, true);
+  h.session.setDirty(false);
+  assert.equal(await h.session.stopEditing(), 'stopped');
+  const s = open(h.session.state);
+  assert.equal(s.role, 'viewer');
+  assert.equal(s.lockHeld, false);
+  assert.ok(h.f.calls.includes('unlock'));
+  assert.equal(h.timers.size, 0);
+  assert.equal(await h.session.stopEditing(), 'not-editing');
+});
+
+test('최신본 다시 열기는 잠금을 새로 잡지 않는다', async () => {
+  const h = harness(meta({ access: 'view' }));
+  await h.session.open(TOK, null);
+  h.f.setMeta(meta({ version: 2 }));
+  await h.session.reloadLatest();
+  assert.equal(open(h.session.state).role, 'viewer');
+  assert.equal(h.f.calls.some((c) => c.startsWith('lock:')), false);
 });

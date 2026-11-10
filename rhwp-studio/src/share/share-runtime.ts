@@ -377,8 +377,10 @@ export class ShareRuntime {
     if (!session) return;
     if (kind === 'download') {
       this.deps.dispatch('file:save-as-hwpx');
-    } else if (kind === 'takeover') {
-      if (!(await session.takeOver())) showToast({ message: t('share.takeoverFailed.text') });
+    } else if (kind === 'start') {
+      if (!(await session.startEditing())) showToast({ message: t('share.takeoverFailed.text') });
+    } else if (kind === 'stop') {
+      if ((await session.stopEditing()) === 'dirty') showToast({ message: t('share.stopDirty.text') });
     } else if (kind === 'reload') {
       const bytes = await session.reloadLatest();
       const st = session.state;

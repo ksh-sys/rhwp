@@ -1,7 +1,9 @@
 /**
  * 공유 세션 상태 기계 — 순수(제공자·시계·타이머 주입, DOM 없음).
  *
- * 한 문서에 편집자는 한 명(잠금). 편집자는 60초마다 심장박동을 보내고, 30분 동안 입력이 없으면
+ * 한 문서에 편집자는 한 명(잠금). 링크를 열거나 만드는 것만으로는 잠금을 잡지 않는다 — 누구나
+ * 보기로 열리고, [편집 시작](startEditing)을 누른 사람만 잡으며 [편집 마치기](stopEditing)로 놓는다
+ * (읽기만 하는 사람·링크를 만든 사람이 받은 사람을 막지 않게). 편집자는 60초마다 심장박동을 보내고, 30분 동안 입력이 없으면
  * 보내지 않는다. 박동이 5분 끊긴 잠금은 비어 있는 것으로 본다 — 자리 비움은 약 35분, 창을 닫으면
  * 5분 뒤 다른 사람이 이어받는다. 저장은 baseVersion 이 서버 최신일 때만 받아들여지고(제공자 책임),
  * 아니면 충돌로 끝난다 — 자리 비운 사이 남이 저장한 문서를 덮어쓰지 않는다.
@@ -125,7 +127,8 @@ export class ShareSession {
       ...this.lockInfo(res.meta),
     });
     this.unwatch = this.deps.provider.watch(token, (m) => { void this.onMeta(m); });
-    if (roleFor(res.meta, this.deps.by, now) === 'editor') await this.acquire();
+    // 새로고침한 같은 탭(잠금 주인이 나)이면 이어서 편집, 그 밖에는 보기로 연다
+    if (res.meta.access === 'edit' && res.meta.lock?.by === this.deps.by) await this.acquire();
     return res.bytes;
   }
 
@@ -215,16 +218,39 @@ export class ShareSession {
       adminKey: s.adminKey,
       ...this.lockInfo(res.meta),
     });
-    if (!held && roleFor(res.meta, this.deps.by, this.deps.now()) === 'editor') await this.acquire();
     return res.bytes;
   }
 
-  /** 남의 잠금이 만료됐을 때 「이어서 편집」 */
-  async takeOver(): Promise<boolean> {
+  /** [편집 시작] — 비었거나 박동이 끊긴 잠금이면 잡는다. 남이 편집 중이면 false */
+  async startEditing(): Promise<boolean> {
     const s = this.openState();
-    if (!s || s.lockHeld || s.meta.access !== 'edit') return false;
-    if (!lockExpired(s.meta.lock, this.deps.now())) return false;
+    if (!s) return false;
+    if (s.lockHeld) return true;
+    if (s.meta.access !== 'edit') return false;
+    const lock = s.meta.lock;
+    if (lock && lock.by !== this.deps.by && !lockExpired(lock, this.deps.now())) return false;
     return this.acquire();
+  }
+
+  /** 남의 잠금이 만료됐을 때 「이어서 편집」 — [편집 시작]과 같다 */
+  takeOver(): Promise<boolean> {
+    return this.startEditing();
+  }
+
+  /** [편집 마치기] — 저장하지 않은 수정이 있으면 거절(먼저 저장), 아니면 잠금을 놓고 보기로 */
+  async stopEditing(): Promise<'stopped' | 'dirty' | 'not-editing'> {
+    const s = this.openState();
+    if (!s || !s.lockHeld) return 'not-editing';
+    if (s.dirty) return 'dirty';
+    this.stopHeartbeat();
+    try {
+      await this.deps.provider.unlock(s.token, this.deps.by);
+    } catch {
+      /* 베스트 에포트 — 남은 잠금은 박동이 끊기면 5분 뒤 풀린다 */
+    }
+    const cur = this.openState();
+    if (cur) this.set({ ...cur, role: 'viewer', lockHeld: false, ...this.lockInfo({ ...cur.meta, lock: null }) });
+    return 'stopped';
   }
 
   async close(): Promise<void> {
@@ -355,12 +381,7 @@ export class ShareSession {
     if (verifyLock) await this.beat(true);
 
     if (newer && !next.dirty) await this.queueFetchLatest(next.token);
-
-    const after = this.openState();
-    if (after && !after.lockHeld && after.meta.access === 'edit'
-      && (!after.meta.lock || after.meta.lock.by === this.deps.by)) {
-      await this.acquire();
-    }
+    // 잠금이 풀려도 자동으로 잡지 않는다 — [편집 시작]을 누른 사람만 잡는다
   }
 
   /** 새 버전 다시 열기 — 한 번에 하나씩(앞 열기가 끝난 뒤 다음) */
