@@ -1,3 +1,5 @@
+import { getActiveShareSession } from '@/share/share-runtime';
+import { saveToShare, shouldSaveToShare } from '@/share/share-save';
 import { hwpSaveWarning, unreadableMemoCount } from '@/memo/memo-hwp-guard';
 import type { MemoEntry } from '@/memo/memo-types';
 import { showMemoHwpWarning } from '@/ui/memo-hwp-warning-dialog';
@@ -404,6 +406,24 @@ function reportSaveError(scope: string, error: unknown): void {
 export type SaveCurrentDocumentResult = 'saved' | 'cancelled' | 'failed' | 'unsupported';
 
 export async function saveCurrentDocument(services: CommandServices): Promise<SaveCurrentDocumentResult> {
+  // 링크 공유 세션의 편집자: 「저장」은 PC 파일이 아니라 공유본 새 버전이다(다른 이름으로 저장은 그대로 내려받기)
+  const share = getActiveShareSession();
+  if (share && shouldSaveToShare(share.state)) {
+    return saveToShare({
+      session: share,
+      prepare: () => flushDeferredPaginationBeforeExplicitOutput(services, 'save'),
+      // 일반 저장과 같은 보고 경로 — HWP→HWPX 변환 손실이 있으면 알린다
+      exportBytes: () => {
+        const artifact = exportDocumentWithReportForFormat(services.wasm, 'hwpx');
+        if (artifact.contentLoss) showExportContentLoss(artifact.contentLoss);
+        return artifact.bytes;
+      },
+      markClean: (reason) => services.documentState.markClean(reason),
+      notify: (message) => { const el = document.getElementById('sb-message'); if (el) el.textContent = message; },
+      toast: (message) => showToast({ message }),
+      t,
+    });
+  }
   let password: string | null = null;
   try {
     flushDeferredPaginationBeforeExplicitOutput(services, 'save');
