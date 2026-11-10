@@ -4,7 +4,8 @@ import type { DocumentDirtyState } from '@/core/document-dirty-state';
 import type { InputHandler } from '@/engine/input-handler';
 import type { ViewportManager } from '@/view/viewport-manager';
 
-export type EditorEditMode = 'normal' | 'form';
+/** normal: 기본 편집, form: 양식(누름틀만), view: 보기 전용(공유 링크 「보기」 권한·남이 편집 중) */
+export type EditorEditMode = 'normal' | 'form' | 'view';
 
 /** 커맨드 실행 가능 여부 판단용 에디터 상태 스냅샷 */
 export interface EditorContext {
@@ -85,6 +86,8 @@ export type CommandFailure =
   | 'disabled'
   /** 양식 모드에서 차단되는 커맨드 */
   | 'blocked-in-form-mode'
+  /** 보기 전용 모드에서 차단되는 커맨드 */
+  | 'blocked-in-view-mode'
   /** 다이얼로그가 필요해 자동화가 거절 (`opensDialog`) */
   | 'needs-dialog'
   /** `execute` 가 예외를 던짐 */

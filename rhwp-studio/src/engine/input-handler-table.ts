@@ -238,6 +238,7 @@ export function startResizeDrag(this: any,
   pageX: number, pageY: number,
   pageBboxes: CellBbox[],
 ): void {
+  if (this.isViewMode?.()) return; // 보기 전용: 표 테두리를 끌어 크기를 바꾸지 않는다
   if (!this.cachedTableRef || !this.cachedCellBboxes || !this.tableResizeRenderer) return;
 
   // 경계선 원래 위치 계산
@@ -1003,6 +1004,7 @@ export function startTableScaleDrag(
   pageX: number,
   pageY: number,
 ): boolean {
+  if (this.isViewMode?.()) return false; // 보기 전용: 표 배율 조절 안 함
   try {
     const bbox = this.wasm.getTableBBoxAtPage(ref.sec, ref.ppi, ref.ci, pageIdx);
     const cells: CellBbox[] = this.wasm.getTableCellBboxes(ref.sec, ref.ppi, ref.ci, pageIdx);

@@ -1942,6 +1942,7 @@ const catalog = {
   "ui.sbMessage.filePages": "{p1} — {p2}페이지",
   "ui.sbMessage.filePagesTimed": "{p1} — {p2}페이지 ({p3}ms)",
   "ui.sbMessage.formMode": "양식 모드",
+  "ui.sbMessage.viewMode": "보기 전용",
   "ui.sbMessage.newDocPages": "새 문서.hwp — {p1}페이지",
   "ui.sbMode.label": "삽입",
   "ui.sbMode.label.overwrite": "수정",

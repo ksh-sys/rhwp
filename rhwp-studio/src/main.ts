@@ -170,6 +170,7 @@ async function completeHostSave(fileName?: string): Promise<{ ok: true; wasDirty
 // E2E 테스트용 전역 노출 (개발 모드 전용)
 if (import.meta.env.DEV) {
   (window as any).__wasm = wasm;
+  (window as any).__setEditMode = (mode: EditorEditMode) => setEditMode(mode);
   (window as any).__eventBus = eventBus;
   (window as any).__documentState = documentState;
   (window as any).__autosaveManager = autosaveManager;
@@ -254,7 +255,7 @@ function getContext(): EditorContext {
     inTableObjectSelection: inputHandler?.isInTableObjectSelection() ?? false,
     inPictureObjectSelection: inputHandler?.isInPictureObjectSelection() ?? false,
     inField: inputHandler?.isInField() ?? false,
-    isEditable: !isFormMode || canEditFormField,
+    isEditable: editMode !== 'view' && (!isFormMode || canEditFormField),
     editMode,
     isFormMode,
     canEditFormField,
@@ -272,10 +273,13 @@ function setEditMode(mode: EditorEditMode): void {
   editMode = mode;
   inputHandler?.setEditMode(mode);
   document.documentElement.dataset.editMode = mode;
+  if (wasm.pageCount > 0) toolbar?.setEnabled(mode !== 'view');
   document.querySelectorAll('[data-cmd="view:form-mode"]').forEach(el => {
     el.classList.toggle('active', mode === 'form');
   });
-  sbMessage().textContent = mode === 'form' ? t('ui.sbMessage.formMode') : t('ui.sbMessage.editMode');
+  sbMessage().textContent = mode === 'form'
+    ? t('ui.sbMessage.formMode')
+    : mode === 'view' ? t('ui.sbMessage.viewMode') : t('ui.sbMessage.editMode');
   eventBus.emit('edit-mode-changed', mode);
   eventBus.emit('command-state-changed');
 }
@@ -1148,6 +1152,8 @@ function setupFileInput(): void {
   container.addEventListener('drop', async (e) => {
     e.preventDefault();
     container.classList.remove('drag-over');
+    // 보기 전용: 그림 넣기(편집)도, 문서 교체도 하지 않는다 — 공유 문서를 엉뚱한 파일로 바꾸지 않게.
+    if (editMode === 'view') return;
     const file = e.dataTransfer?.files[0];
     if (!file) return;
     const dropName = file.name.toLowerCase();
@@ -1564,7 +1570,8 @@ async function initializeDocument(
     prepareCanvasKitLocalFonts(docInfo.fontsUsed);
     console.log('[initDoc] 5. toolbar setEnabled');
     await updateLoadProgress(90, '도구 모음 준비 중...');
-    toolbar?.setEnabled(true);
+    // 보기 전용이면 서식 도구 모음은 계속 꺼 둔다(공유본 새 버전을 다시 불러와도 유지)
+    toolbar?.setEnabled(editMode !== 'view');
     console.log('[initDoc] 6. toolbar initFontDropdown + initStyleDropdown');
     toolbar?.initFontDropdown(docInfo.fontsUsed);
     toolbar?.initStyleDropdown();

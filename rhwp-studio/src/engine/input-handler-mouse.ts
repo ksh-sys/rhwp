@@ -455,6 +455,7 @@ export function onClick(this: any, e: MouseEvent): void {
               py >= bbox.y && py <= bbox.y + bbox.height) {
             clickedInsideSelectedTable = true;
             e.preventDefault();
+            if (this.isViewMode?.()) return; // 보기 전용: 개체·표를 끌어 바꾸지 않는다
             this.isMoveDragging = true;
             this.moveDragState = {
               tableRef: { sec: ref.sec, ppi: ref.ppi, ci: ref.ci },
@@ -532,6 +533,7 @@ export function onClick(this: any, e: MouseEvent): void {
               }
               if (hasSizeProtected) return;
               if (multiResizeRefs.length > 0) {
+                if (this.isViewMode?.()) return; // 보기 전용: 개체·표를 끌어 바꾸지 않는다
                 this.isPictureResizeDragging = true;
                 this.pictureResizeState = {
                   dir,
@@ -562,6 +564,7 @@ export function onClick(this: any, e: MouseEvent): void {
             }
             if (multiMoveRefs.length > 0) {
               e.preventDefault();
+              if (this.isViewMode?.()) return; // 보기 전용: 개체·표를 끌어 바꾸지 않는다
               this.isPictureMoveDragging = true;
               this.pictureMoveState = {
                 ref: multiMoveRefs[0] as any,
@@ -609,6 +612,7 @@ export function onClick(this: any, e: MouseEvent): void {
                 const po = this.virtualScroll.getPageOffset(picBbox.pageIndex);
                 const pw = this.virtualScroll.getPageWidth(picBbox.pageIndex);
                 const pl = this.virtualScroll.getPageLeftResolved(picBbox.pageIndex, sc.clientWidth);
+                if (this.isViewMode?.()) return; // 보기 전용: 개체·표를 끌어 바꾸지 않는다
                 this.isLineEndpointDragging = true;
                 // [Task #2759] 드래그 시작 시 원래 끝점(글로벌 HWPUNIT)을 캡처해 종료 시
                 // Undo 기록의 before 로 쓴다. (x1,y1)=시작점, (x2,y2)=끝점 — 드래그 중
@@ -643,6 +647,7 @@ export function onClick(this: any, e: MouseEvent): void {
                 const origAngle = props.rotationAngle ?? 0;
                 // 마우스→중심 각도
                 const startAngle = Math.atan2(cy - objCy, cx - objCx);
+                if (this.isViewMode?.()) return; // 보기 전용: 개체·표를 끌어 바꾸지 않는다
                 this.isPictureRotateDragging = true;
                 this.pictureRotateState = {
                   ref: { sec: ref.sec, ppi: ref.ppi, ci: ref.ci, type: ref.type, cellPath: ref.cellPath, headerFooter: ref.headerFooter },
@@ -657,6 +662,7 @@ export function onClick(this: any, e: MouseEvent): void {
                 return;
               }
               // 리사이즈 드래그 시작
+              if (this.isViewMode?.()) return; // 보기 전용: 개체·표를 끌어 바꾸지 않는다
               this.isPictureResizeDragging = true;
               this.pictureResizeState = {
                 dir,
@@ -704,6 +710,7 @@ export function onClick(this: any, e: MouseEvent): void {
                 const props = this.getObjectProperties(ref);
                 if (!props.treatAsChar) {
                   e.preventDefault();
+                  if (this.isViewMode?.()) return; // 보기 전용: 개체·표를 끌어 바꾸지 않는다
                   this.isPictureMoveDragging = true;
                   this.pictureMoveState = {
                     ref: { sec: ref.sec, ppi: ref.ppi, ci: ref.ci, type: ref.type, cellPath: ref.cellPath, headerFooter: ref.headerFooter },
@@ -1391,6 +1398,8 @@ export function onClick(this: any, e: MouseEvent): void {
 
 export function onDblClick(this: any, e: MouseEvent): void {
   if (!this.active) return;
+  // 보기 전용: 머리말·각주 편집 진입, 개체 속성 열기 등 더블클릭 편집 진입을 하지 않는다.
+  if (this.isViewMode?.()) return;
   if (this.imagePlacementMode || this.textboxPlacementMode) return;
 
   // 다각형 그리기 모드: 더블클릭으로 완료

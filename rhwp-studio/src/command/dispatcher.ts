@@ -1,6 +1,7 @@
 import type { EventBus } from '@/core/event-bus';
 import type { CommandRegistry } from './registry';
 import type { CommandResult, CommandServices, EditorContext } from './types';
+import { isBlockedInViewMode } from './view-mode-policy';
 
 const FORM_MODE_BLOCKED_IDS = new Set([
   'edit:cut',
@@ -60,6 +61,9 @@ export class CommandDispatcher {
     if (isBlockedInFormMode(commandId, ctx)) {
       return { ok: false, reason: 'blocked-in-form-mode' };
     }
+    if (ctx.editMode === 'view' && isBlockedInViewMode(commandId)) {
+      return { ok: false, reason: 'blocked-in-view-mode' };
+    }
     if (def.canExecute && !def.canExecute(ctx)) {
       // canExecute 실패 — 비활성 상태
       return { ok: false, reason: 'disabled' };
@@ -85,6 +89,7 @@ export class CommandDispatcher {
     if (!def) return false;
     const ctx = this.services.getContext();
     if (isBlockedInFormMode(commandId, ctx)) return false;
+    if (ctx.editMode === 'view' && isBlockedInViewMode(commandId)) return false;
     if (!def.canExecute) return true;
     return def.canExecute(ctx);
   }

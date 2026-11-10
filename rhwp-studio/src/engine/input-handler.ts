@@ -736,7 +736,7 @@ export class InputHandler {
     // Toolbar에서 서식 적용 요청 수신 (글꼴명, 크기, 색상 — 커맨드 시스템 미경유)
     eventBus.on('format-char', (props) => {
       if (!this.active) return;
-      if (this.editMode === 'form') return;
+      if (this.editMode === 'form' || this.editMode === 'view') return;
       // [#4162] 선택이 없어도(캐럿만) applyCharFormat 이 캐럿 대기 서식으로 예약한다 —
       // 여기서 선택 유무로 걸러내면 글꼴/크기/색 피커가 다시 무언 no-op 이 된다.
       this.applyCharFormat(props as Partial<CharProperties>);
@@ -4600,7 +4600,7 @@ export class InputHandler {
   /** 현재 편집 모드를 설정한다 */
   setEditMode(mode: EditorEditMode): void {
     this.editMode = mode;
-    if (mode === 'form') {
+    if (mode === 'form' || mode === 'view') {
       if (this.cursor.isInPictureObjectSelection()) {
         this.cursor.moveOutOfSelectedPicture();
         this.pictureObjectRenderer?.clear();
@@ -4617,6 +4617,11 @@ export class InputHandler {
 
   /** 양식 모드인가? */
   isFormMode(): boolean { return this.editMode === 'form'; }
+
+  /** 보기 전용 모드인가? (공유 링크 「보기」 권한·남이 편집 중) */
+  isViewMode(): boolean { return this.editMode === 'view'; }
+
+  private viewModeOperationWarned = false;
 
   /** 현재 커서가 양식 모드에서 편집 가능한 누름틀 안인가? */
   canEditCurrentFormField(): boolean {
@@ -4779,6 +4784,15 @@ export class InputHandler {
   }
 
   private isOperationAllowedInEditMode(desc: OperationDescriptor): boolean {
+    // 보기 전용: 기록(record) 포함 전부 거부한다. 뮤테이션 자체는 입력 진입점의 isViewMode 가드가
+    // 먼저 막으므로 여기까지 오는 것은 놓친 경로다 — 한 번만 경고해 찾을 수 있게 한다.
+    if (this.editMode === 'view') {
+      if (!this.viewModeOperationWarned) {
+        this.viewModeOperationWarned = true;
+        console.warn('[InputHandler] 보기 전용 모드에서 편집 작업이 거부됐습니다:', desc.kind);
+      }
+      return false;
+    }
     if (this.editMode !== 'form') return true;
     // [Task #2337-review] kind:'record' 는 이미 적용된 뮤테이션을 히스토리에 기록만 한다.
     // form mode 에서 이를 드롭하면 그 뮤테이션이 undo 불가한 미기록 편집으로 남아(더블클릭
@@ -4995,6 +5009,7 @@ export class InputHandler {
 
   /** 현재 커서 위치의 누름틀 필드와 내용을 제거한다. */
   removeCurrentField(posOverride?: DocumentPosition): void {
+    if (this.editMode === 'view') return;
     const pos = posOverride ?? this.cursor.getPosition();
     let restorePos: DocumentPosition | null = null;
     try {
@@ -5588,14 +5603,14 @@ export class InputHandler {
 
   /** 붙이기 (커맨드 시스템용 — 컨텍스트 메뉴/도구 상자에서 호출) */
   performPaste(): boolean {
-    if (this.editMode === 'form') return false;
+    if (this.editMode === 'form' || this.editMode === 'view') return false;
     this.focusTextarea();
     return document.execCommand('paste');
   }
 
   /** 잘라내기 (커맨드 시스템용 — 컨텍스트 메뉴/도구 상자에서 호출) */
   performCut(): void {
-    if (this.editMode === 'form') return;
+    if (this.editMode === 'form' || this.editMode === 'view') return;
     // 개체 선택 모드 → 복사 + 삭제
     if (this.cursor.isInPictureObjectSelection()) {
       const ref = this.cursor.getSelectedPictureRef();
@@ -5643,7 +5658,7 @@ export class InputHandler {
 
   /** 선택 영역 삭제 (커맨드 시스템용 — 편집 > 지우기) */
   performDelete(): void {
-    if (this.editMode === 'form') return;
+    if (this.editMode === 'form' || this.editMode === 'view') return;
     if (this.cursor.isInPictureObjectSelection()) {
       const ref = this.cursor.getSelectedPictureRef();
       if (ref) {

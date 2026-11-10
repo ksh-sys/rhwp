@@ -124,7 +124,7 @@ function tryConfirmRemoveClickHereAtBoundary(
   pos: DocumentPosition,
   direction: 'backward' | 'forward',
 ): boolean {
-  if (this.isFormMode?.()) return false;
+  if (this.isFormMode?.() || this.isViewMode?.()) return false;
   try {
     const fi = this.wasm.getFieldInfoAt(pos);
     if (!fi.inField || fi.fieldType !== 'clickhere') return false;
@@ -290,6 +290,7 @@ function tryDeleteBodyFootnoteAtCursor(
 }
 
 export function handleBackspace(this: any, pos: DocumentPosition, inCell: boolean): void {
+  if (this.isViewMode?.()) return;
   if (this.isFormMode?.() && !this.canEditCurrentFormField?.()) return;
   // 머리말/꼬리말 편집 모드
   if (this.cursor.isInHeaderFooter()) {
@@ -362,6 +363,7 @@ export function handleBackspace(this: any, pos: DocumentPosition, inCell: boolea
 }
 
 export function handleDelete(this: any, pos: DocumentPosition, inCell: boolean): void {
+  if (this.isViewMode?.()) return;
   if (this.isFormMode?.() && !this.canEditCurrentFormField?.()) return;
   // 머리말/꼬리말 편집 모드
   if (this.cursor.isInHeaderFooter()) {
@@ -453,6 +455,8 @@ function clearCellBlockLetterImeFollowup(this: any): void {
 }
 
 export function onCompositionStart(this: any): void {
+  // 보기 전용: 조합을 시작하지 않는다. 조합 중 글자는 onInput/onCompositionEnd 에서 버린다.
+  if (this.isViewMode?.()) return;
   if (this._cellBlockLetterImeGuard?.consume('compositionstart')) {
     clearCellBlockLetterImeFollowup.call(this);
     return;
@@ -508,6 +512,11 @@ export function onCompositionStart(this: any): void {
 }
 
 export function onCompositionEnd(this: any): void {
+  if (this.isViewMode?.()) {
+    this.isComposing = false;
+    if (this.textarea) this.textarea.value = '';
+    return;
+  }
   if (this._cellBlockLetterImeGuard?.consume('compositionend', this.textarea.value)) {
     clearCellBlockLetterImeFollowup.call(this);
     return;
@@ -619,6 +628,11 @@ export function getTextAt(this: any, pos: DocumentPosition, count: number): stri
 
 export function onInput(this: any, e?: InputEvent): void {
   if (!this.active) return;
+  // 보기 전용: textarea 에 들어온 글자(IME 조합 중간 포함)를 문서에 옮기지 않고 버린다.
+  if (this.isViewMode?.()) {
+    if (this.textarea) this.textarea.value = '';
+    return;
+  }
 
   if (this._cellBlockLetterImeGuard?.consume('input', this.textarea.value)) {
     e?.preventDefault();
