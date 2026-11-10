@@ -161,6 +161,8 @@ export default defineConfig({
         // WASM (~12 MB) is kept out of precache to avoid blocking SW installation;
         // CacheFirst at runtime still gives offline access after the first load.
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2,ttf,otf}'],
+        // 공유 제공자는 배포처가 빌드 뒤에 넣는 모듈(항상 네트워크)이고, .dev.js 는 개발 서버 전용이다
+        globIgnores: ['share-provider.dev.js', 'share-provider.js'],
         maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
         runtimeCaching: [
           {
