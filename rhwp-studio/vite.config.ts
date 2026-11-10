@@ -76,6 +76,16 @@ export default defineConfig({
     },
   },
   plugins: [
+    // 공유 제공자 모듈 주소 — 있으면 <meta name="rhwp-share-provider"> 로 박혀 기동 시 import() 된다.
+    // 없으면 메타도 없고 공유 메뉴는 숨겨진다(업스트림 기본 동작 유지).
+    {
+      name: 'share-provider-meta',
+      transformIndexHtml() {
+        const content = process.env.RHWP_SHARE_PROVIDER;
+        if (!content) return [];
+        return [{ tag: 'meta', attrs: { name: 'rhwp-share-provider', content }, injectTo: 'head' }];
+      },
+    },
     {
       name: 'ignore-subsecond-patch-artifacts',
       handleHotUpdate(context) {
