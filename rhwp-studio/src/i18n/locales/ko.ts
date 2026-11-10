@@ -1070,6 +1070,7 @@ const catalog = {
   "dialog.pageBorder.radio.label.xf7473b": "모두",
   "dialog.pageBorder.radio.label.xf8c0bd": "홀수 쪽",
   "dialog.pageBorder.smallPlainButton.label": "구성...",
+  "dialog.pageSetup.applyToNewDoc.label": "현재 설정 값을 새 문서에 적용",
   "dialog.pageSetup.createBody.label": "문서 전체",
   "dialog.pageSetup.createBody.label.x3c151b": "새 구역으로",
   "dialog.pageSetup.createSection.label": "용지 종류",

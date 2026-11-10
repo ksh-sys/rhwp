@@ -1959,7 +1959,7 @@ async function createNewDocument(): Promise<void> {
   try {
     await withBusyCursor(document.documentElement, async () => {
       msg.textContent = '새 문서 생성 중...';
-      const docInfo = wasm.createNewDocument();
+      const docInfo = wasm.createNewDocument(userSettings.getNewDocPageDef());
       prepareCanvasRendererDocument();
       plugins.notifyDocumentSwap();
       await autosaveManager.beginDocument(

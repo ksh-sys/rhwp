@@ -1070,6 +1070,7 @@ const catalog = {
   "dialog.pageBorder.radio.label.xf7473b": "All",
   "dialog.pageBorder.radio.label.xf8c0bd": "Odd pages",
   "dialog.pageBorder.smallPlainButton.label": "Configure...",
+  "dialog.pageSetup.applyToNewDoc.label": "Apply current settings to new documents",
   "dialog.pageSetup.createBody.label": "Entire document",
   "dialog.pageSetup.createBody.label.x3c151b": "New section",
   "dialog.pageSetup.createSection.label": "Paper size",

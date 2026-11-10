@@ -6,6 +6,7 @@ import type { EventBus } from '@/core/event-bus';
 import type { CommandServices } from '@/command/types';
 import { applyThroughRouter } from './dialog-apply';
 import { pageBodyViolation } from '@/core/page-body-limits';
+import { userSettings } from '@/core/user-settings';
 
 import { t as i18nText } from '../i18n/index.ts';
 const HWPUNIT_PER_MM = 7200 / 25.4; // ≈283.46
@@ -71,6 +72,7 @@ export class PageSetupDialog extends ModalDialog {
   private bindingRadios!: HTMLInputElement[];
   private marginInputs!: Record<string, HTMLInputElement>;
   private scopeSelect!: HTMLSelectElement;
+  private applyToNewDocCheck!: HTMLInputElement;
 
   constructor(wasm: WasmBridge, eventBus: EventBus, sectionIdx: number, private services?: CommandServices) {
     super(i18nText('dialog.pageSetup.matchesPaperPreset.title'), 440);
@@ -201,6 +203,15 @@ export class PageSetupDialog extends ModalDialog {
       this.scopeSelect.appendChild(opt);
     }
     scopeRow.appendChild(this.scopeSelect);
+    // 한글처럼 「현재 설정 값을 새 문서에 적용」 — 체크하고 설정하면 새 문서 기본 용지가 된다
+    const newDocLabel = document.createElement('label');
+    newDocLabel.className = 'dialog-checkbox';
+    newDocLabel.style.marginLeft = '16px';
+    this.applyToNewDocCheck = document.createElement('input');
+    this.applyToNewDocCheck.type = 'checkbox';
+    newDocLabel.appendChild(this.applyToNewDocCheck);
+    newDocLabel.appendChild(document.createTextNode(' ' + i18nText('dialog.pageSetup.applyToNewDoc.label')));
+    scopeRow.appendChild(newDocLabel);
     scopeRow.style.marginTop = '4px';
     body.appendChild(scopeRow);
 
@@ -238,6 +249,8 @@ export class PageSetupDialog extends ModalDialog {
       alert(violation);
       return false;
     }
+
+    if (this.applyToNewDocCheck?.checked) userSettings.setNewDocPageDef(newDef);
 
     // [편집 용지 이관] 쪽 정의 변경을 snapshot 으로 라우팅해 undo 가능(#2077 수식 속성 동형).
     // services 미주입 환경(구 호출부)에서만 직접 적용 fallback.

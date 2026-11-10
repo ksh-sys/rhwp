@@ -12,6 +12,8 @@ import {
   type PageMovementSettings,
 } from '../view/page-movement.ts';
 import { normalizeZoomFitMode, type ZoomFitMode } from '../view/zoom-fit.ts';
+import type { PageDef } from './types.ts';
+import { normalizeNewDocPageDef } from './new-doc-page-def.ts';
 
 /** 대표 글꼴 세트 (7개 언어별 글꼴) */
 export interface FontSet {
@@ -115,6 +117,8 @@ export interface AppSettings {
   view: ViewSettings;
   autosave: AutosaveSettings;
   review: ReviewSettings;
+  /** 새 문서 기본값 — 편집 용지(F7)의 「현재 설정 값을 새 문서에 적용」 */
+  newDocument: { pageDef: PageDef };
 }
 
 /** 언어 인덱스 상수 (HWP 7개 언어) */
@@ -200,6 +204,9 @@ function defaultSettings(): AppSettings {
       showMemos: true,
       showMemoGuides: true,
       showMemoList: false,
+    },
+    newDocument: {
+      pageDef: normalizeNewDocPageDef(null),
     },
   };
 }
@@ -352,6 +359,9 @@ class UserSettingsService {
           showMemoGuides: normalizeBoolean(review.showMemoGuides, defaults.review.showMemoGuides),
           showMemoList: normalizeBoolean(review.showMemoList, defaults.review.showMemoList),
         },
+        newDocument: {
+          pageDef: normalizeNewDocPageDef(parsed.newDocument?.pageDef),
+        },
       };
     } catch {
       return defaultSettings();
@@ -377,6 +387,17 @@ class UserSettingsService {
       showMemoGuides: normalizeBoolean(partial.showMemoGuides, cur.showMemoGuides),
       showMemoList: normalizeBoolean(partial.showMemoList, cur.showMemoList),
     };
+    this.save();
+  }
+
+  /** 새 문서 기본 용지(복사본) */
+  getNewDocPageDef(): PageDef {
+    return { ...this.data.newDocument.pageDef };
+  }
+
+  /** 새 문서 기본 용지 저장 — 편집 용지(F7)의 「현재 설정 값을 새 문서에 적용」 */
+  setNewDocPageDef(def: PageDef): void {
+    this.data.newDocument = { pageDef: normalizeNewDocPageDef(def) };
     this.save();
   }
 

@@ -571,12 +571,24 @@ export class WasmBridge {
     return this.doc != null;
   }
 
-  createNewDocument(): DocumentInfo {
+  /**
+   * 빈 문서를 만든다. `pageDef` 가 있으면 첫 구역의 편집 용지를 그 값으로 맞춘다
+   * (사용자 기본 용지 — 히스토리 밖, 문서가 태어나는 순간의 일부라 다이제스트 계산 전에 적용).
+   */
+  createNewDocument(pageDef?: PageDef): DocumentInfo {
     if (!this.doc) {
       // 아직 WASM 객체가 없으면 더미로 생성 (createEmpty → 즉시 교체)
       this.doc = HwpDocument.createEmpty();
     }
     const info: DocumentInfo = JSON.parse(this.doc.createBlankDocument());
+    if (pageDef) {
+      try {
+        const res = JSON.parse(this.doc.setPageDef(0, JSON.stringify(pageDef)));
+        if (res && typeof res.pageCount === 'number') info.pageCount = res.pageCount;
+      } catch (e) {
+        console.warn('[WasmBridge] 새 문서 기본 용지 적용 실패 — 엔진 기본값으로 둡니다:', e);
+      }
+    }
     this.ensureParagraphStableIds();
     this._fileName = '새 문서.hwp';
     this._currentFileHandle = null;
