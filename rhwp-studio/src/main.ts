@@ -2,6 +2,7 @@ import { MemoPane } from './memo/memo-pane.ts';
 import type { MemoEntry } from './memo/memo-types.ts';
 import { collapsedMemos, collapsedMemosToRemove, positionToMemoLocation } from './memo/memo-collapse.ts';
 import { reviewCommands, syncMemoMenu } from '@/command/commands/review';
+import { shareCommands } from '@/command/commands/share';
 import { setMemoServices } from './memo/memo-services.ts';
 import { MemoStore } from './memo/memo-store.ts';
 import { MemoLayer } from './memo/memo-layer.ts';
@@ -64,6 +65,7 @@ import { showHwpPasswordDialog } from '@/ui/hwp-password-dialog';
 import {
   EMBED_HIDDEN_EDIT_COMMAND_IDS,
   EMBED_HIDDEN_FILE_COMMAND_IDS,
+  EMBED_HIDDEN_SHARE_COMMAND_IDS,
   isEmbedSwallowedFileShortcut,
   resolveChromeModeRequest,
 } from '@/ui/chrome-mode';
@@ -384,6 +386,7 @@ registry.registerAll(
 );
 registry.registerAll(viewCommands);
 registry.registerAll(reviewCommands);
+if (chromeMode !== 'embed') registry.registerAll(shareCommands);
 registry.registerAll(formatCommands);
 registry.registerAll(insertCommands);
 registry.registerAll(tableCommands);
@@ -400,7 +403,7 @@ registry.registerAll(toolCommands);
  * setupFileInput이 존재를 전제한다.
  */
 function pruneEmbedChrome(): void {
-  for (const id of [...EMBED_HIDDEN_FILE_COMMAND_IDS, ...EMBED_HIDDEN_EDIT_COMMAND_IDS]) {
+  for (const id of [...EMBED_HIDDEN_FILE_COMMAND_IDS, ...EMBED_HIDDEN_EDIT_COMMAND_IDS, ...EMBED_HIDDEN_SHARE_COMMAND_IDS]) {
     document.querySelectorAll(`[data-cmd="${id}"]`).forEach((item) => item.remove());
   }
   const dropdown = document.querySelector('.menu-item[data-menu="file"] .menu-dropdown');
@@ -992,6 +995,7 @@ async function initialize(): Promise<void> {
       isDirty: () => documentState.isDirty(),
       dispatch: (id) => dispatcher.dispatch(id),
       setStatus: (text) => { sbMessage().textContent = text; },
+      markClean: (reason) => documentState.markClean(reason),
     });
     (window as any).rhwpStudio.share = shareRuntime;
     setupFileInput();

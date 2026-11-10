@@ -40,6 +40,9 @@
           <div class="md-item disabled" data-cmd="file:save-as-hwpx"><span class="md-icon"></span><span class="md-label" data-i18n="command.file.saveAsHwpx.label">HWPX 형식으로 저장...</span></div>
           <div class="md-item disabled" data-cmd="file:export-html"><span class="md-icon"></span><span class="md-label" data-i18n="command.file.exportHtml.label">HTML로 내보내기</span></div>
           <div class="md-item disabled" data-cmd="file:export-doc" title="Word가 열 수 있는 HTML 기반 .doc 문서로 내보냅니다." data-i18n-title="command.file.exportDoc.tooltip"><span class="md-icon"></span><span class="md-label" data-i18n="command.file.exportDoc.label">Word 문서(.doc)로 내보내기</span></div>
+          <div class="md-sep" data-share-ui hidden></div>
+          <div class="md-item disabled" data-cmd="file:share-link" data-share-ui hidden><span class="md-icon"></span><span class="md-label" data-i18n="command.file.shareLink.label">링크로 공유…</span></div>
+          <div class="md-item disabled" data-cmd="file:share-manage" data-share-ui hidden><span class="md-icon"></span><span class="md-label" data-i18n="command.file.shareManage.label">공유 관리…</span></div>
           <div class="md-sep"></div>
           <div class="md-item disabled" data-cmd="file:page-setup"><span class="md-icon icon-page-setup"></span><span class="md-label" data-i18n="command.file.pageSetup.label">편집 용지</span><span class="md-shortcut">F7</span></div>
           <div class="md-item disabled" data-cmd="file:print"><span class="md-icon icon-print"></span><span class="md-label" data-i18n="command.file.print.label">인쇄</span><span class="md-shortcut">Ctrl+P</span></div>
@@ -708,6 +711,7 @@
       <span id="sb-section" class="stb-item" data-i18n="ui.sbSection.label">구역: 1 / 1</span>
       <span class="stb-divider"></span>
       <span id="sb-mode" class="stb-item" data-i18n="ui.sbMode.label">삽입</span>
+      <button id="sb-share" class="stb-item stb-share" type="button" data-share-ui hidden></button>
       <span id="sb-cell-selection" class="stb-item stb-cell-selection" role="status" aria-live="polite" hidden></span>
       <span id="sb-field" class="stb-item" style="display:none"></span>
       <span id="sb-message" class="stb-message"></span>

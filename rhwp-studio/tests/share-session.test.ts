@@ -231,9 +231,22 @@ test('구독 — 남의 잠금이 풀리면 편집 권한일 때 자동으로 �
   assert.equal(h.timers.size, 0);
 });
 
-test('구독 — 내 잠금을 남이 가져가면(서버 기준) 보는 사람으로', async () => {
+test('구독 — 늦게 온 옛 알림이 남의 잠금을 보여도, 심장박동이 내 잠금을 확인하면 편집자를 유지한다', async () => {
   const h = harness(meta());
   await h.session.open(TOK, null);
+  h.f.emit(meta({ lock: { by: OTHER, since: h.now, heartbeatAt: h.now } }));
+  await h.flush();
+  const s = open(h.session.state);
+  assert.equal(s.role, 'editor');
+  assert.equal(s.lockHeld, true);
+  assert.ok(h.f.calls.includes('heartbeat'));
+  assert.equal(h.timers.size, 1);
+});
+
+test('구독 — 내 잠금을 남이 가져가면(서버 기준, 심장박동 거부) 보는 사람으로', async () => {
+  const h = harness(meta());
+  await h.session.open(TOK, null);
+  h.f.ctl.heartbeatResult = false;
   h.f.emit(meta({ lock: { by: OTHER, since: h.now, heartbeatAt: h.now } }));
   await h.flush();
   const s = open(h.session.state);

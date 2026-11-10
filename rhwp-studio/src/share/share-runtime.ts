@@ -10,10 +10,11 @@ import type { EditorEditMode } from '@/command/types';
 import { userSettings } from '@/core/user-settings';
 import { showToast } from '@/ui/toast';
 import { t } from '../i18n/index.ts';
-import type { ShareMeta, ShareProvider } from './provider';
+import type { ShareMeta, ShareProvider, ShareSettings } from './provider';
 import { ShareSession, type SessionState } from './share-session';
-import { ADMIN_KEY_STORAGE_PREFIX, lockOwnerId, parseShareLocation } from './share-link';
-import { bannerModel, type BannerActionKind } from './share-banner';
+import { ADMIN_KEY_STORAGE_PREFIX, buildAdminUrl, buildShareUrl, lockOwnerId, parseShareLocation } from './share-link';
+import { bannerModel, chipModel, type BannerActionKind } from './share-banner';
+import { browserClipboardEnv, copyText } from './clipboard';
 import { ShareNameDialog } from './share-name-dialog';
 
 const NAME_KEY = 'rhwp-share-name';
@@ -30,6 +31,8 @@ export interface ShareRuntimeDeps {
   isDirty(): boolean;
   dispatch(commandId: string): boolean;
   setStatus(text: string): void;
+  /** 공유본이 곧 최신본이 됐다(만들기 직후) — 로컬 저장 안내가 뜨지 않게 */
+  markClean(reason: string): void;
 }
 
 function safeGet(store: Storage | undefined, key: string): string | null {
@@ -71,6 +74,18 @@ export class ShareRuntime {
     for (const type of ['keydown', 'pointerdown', 'wheel'] as const) {
       document.addEventListener(type, activity, { capture: true, passive: true });
     }
+    void deps.providerPromise.then((p) => {
+      this.provider = p;
+      this.providerLoaded = true;
+      this.syncShareUi();
+      deps.eventBus.emit('command-state-changed');
+    });
+    document.getElementById('sb-share')?.addEventListener('click', () => {
+      const st = this.session?.state;
+      const manageable = (st?.kind === 'open' || st?.kind === 'conflict') && !!st.adminKey;
+      if (manageable) this.deps.dispatch('file:share-manage');
+      else void this.copyLink();
+    });
     window.addEventListener('pagehide', () => {
       const s = this.session?.state;
       if (s?.kind === 'open' && s.lockHeld) void this.provider?.unlock(s.token, s.by).catch(() => {});
@@ -83,6 +98,87 @@ export class ShareRuntime {
       this.providerLoaded = true;
     }
     return this.provider;
+  }
+
+  /** 공유 제공자가 있다(메뉴·명령 표시) */
+  get available(): boolean {
+    return !!this.provider;
+  }
+
+  /** 편집기 주소(쿼리·해시 없는 디렉터리) — 공유 링크의 바탕 */
+  private shareBase(): string {
+    return new URL('.', location.href).href;
+  }
+
+  shareUrl(token: string): string {
+    return buildShareUrl(this.shareBase(), token);
+  }
+
+  adminUrl(token: string, adminKey: string): string {
+    return buildAdminUrl(this.shareBase(), token, adminKey);
+  }
+
+  /** 지금 공유 링크를 클립보드에 복사하고 결과를 알린다 */
+  async copyLink(): Promise<void> {
+    const st = this.session?.state;
+    if (!st || (st.kind !== 'open' && st.kind !== 'conflict')) return;
+    const url = this.shareUrl(st.token);
+    const r = await copyText(url, browserClipboardEnv());
+    showToast({ message: r === 'manual' ? `${t('share.copyManual.text')}\n${url}` : t('share.linkCopied.text') });
+  }
+
+  /**
+   * 지금 문서로 공유를 만든다 — 공유본 v1 업로드, 관리키 저장, 세션 시작(문서는 다시 열지 않음),
+   * 주소창을 공유 링크로 바꿔 새로고침해도 공유본이 열리게 한다.
+   */
+  async createFromCurrentDocument(bytes: Uint8Array, name: string, settings: ShareSettings): Promise<{ token: string; adminKey: string; url: string; adminUrl: string }> {
+    const provider = await this.getProvider();
+    if (!provider) throw new Error(t('share.noProvider.text'));
+    const { token, adminKey } = await provider.create(bytes, name, settings);
+    safeSet(globalThis.localStorage, ADMIN_KEY_STORAGE_PREFIX + token, adminKey);
+    await this.openSession(token, adminKey, false);
+    this.deps.markClean('share-create');
+    const u = new URL(location.href);
+    u.searchParams.set('share', token);
+    u.hash = '';
+    history.replaceState(history.state, '', u.href);
+    return { token, adminKey, url: this.shareUrl(token), adminUrl: this.adminUrl(token, adminKey) };
+  }
+
+  async updateSettings(settings: Partial<ShareSettings>): Promise<void> {
+    const st = this.session?.state;
+    if (!this.provider || !st || (st.kind !== 'open' && st.kind !== 'conflict') || !st.adminKey) throw new Error(t('share.manage.noAdminKey.text'));
+    await this.provider.updateSettings(st.token, st.adminKey, settings);
+  }
+
+  /** 예전 버전을 공유본 새 버전으로 되돌린다(내가 편집자일 때만) */
+  async restoreVersion(version: number): Promise<void> {
+    const session = this.session;
+    const st = session?.state;
+    if (!session || !this.provider || st?.kind !== 'open' || st.role !== 'editor' || !st.lockHeld) {
+      showToast({ message: t('share.restoreBlocked.text') });
+      return;
+    }
+    const bytes = await this.provider.openVersion(st.token, version);
+    const r = await session.save(bytes);
+    const after = session.state;
+    if (r !== 'saved' || after.kind !== 'open') {
+      showToast({ message: t('share.actionFailed.text', { p1: r }) });
+      return;
+    }
+    await this.withShareLoad(() => this.deps.loadBytes(bytes, after.meta.name));
+    session.setDirty(false);
+    this.applyMode(session.state);
+    showToast({ message: t('share.restored.text', { p1: version, p2: after.baseVersion }) });
+  }
+
+  /** 공유를 회수한다 — 링크는 끝나고, 이 화면의 문서는 그대로 남는다 */
+  async revoke(): Promise<void> {
+    const st = this.session?.state;
+    if (!this.provider || !st || (st.kind !== 'open' && st.kind !== 'conflict') || !st.adminKey) throw new Error(t('share.manage.noAdminKey.text'));
+    await this.provider.revoke(st.token, st.adminKey);
+    await this.leave();
+    showToast({ message: t('share.revoked.text') });
   }
 
   /** 시작 시 `?share=` 가 있으면 공유 문서를 연다 */
@@ -227,7 +323,25 @@ export class ShareRuntime {
     document.body.appendChild(box);
   }
 
+  /** 제공자가 있을 때만 공유 메뉴를 보인다(상태 칩은 세션이 있을 때 renderChip 이 정한다) */
+  private syncShareUi(): void {
+    document.querySelectorAll<HTMLElement>('[data-share-ui]').forEach((el) => {
+      if (el.id !== 'sb-share') el.hidden = !this.provider;
+    });
+    this.renderChip();
+  }
+
+  private renderChip(): void {
+    const el = document.getElementById('sb-share');
+    if (!el) return;
+    const model = this.session ? chipModel(this.session.state, t) : null;
+    el.hidden = !model;
+    el.textContent = model?.text ?? '';
+    el.title = model ? t(model.manageable ? 'command.file.shareManage.label' : 'share.linkCopied.hint') : '';
+  }
+
   private renderBanner(): void {
+    this.renderChip();
     const el = document.getElementById('share-banner');
     if (!el) return;
     const model = this.session ? bannerModel(this.session.state, Date.now(), t) : null;

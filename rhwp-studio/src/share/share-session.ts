@@ -309,19 +309,22 @@ export class ShareSession {
       return;
     }
     let next: OpenState = { ...s, meta: m, ...this.lockInfo(m) };
+    let verifyLock = false;
     if (s.lockHeld) {
       if (m.access !== 'edit') {
         this.stopHeartbeat();
         void this.deps.provider.unlock(s.token, this.deps.by).catch(() => {});
         next = { ...next, role: 'viewer', lockHeld: false };
       } else if (m.lock && m.lock.by !== this.deps.by) {
-        this.stopHeartbeat();
-        next = { ...next, role: 'viewer', lockHeld: false };
+        // 알림은 늦게·순서가 바뀌어 올 수 있다 — 바로 놓지 않고 심장박동으로 서버에 확인한다.
+        // 서버가 거부하면 beat 가 잠금을 놓는다(loseLock).
+        verifyLock = true;
       }
     }
     const newer = m.version > next.baseVersion;
     if (newer && next.dirty) next = { ...next, pendingVersion: m.version };
     this.set(next);
+    if (verifyLock) await this.beat(true);
 
     if (newer && !next.dirty) await this.fetchLatest(next.token);
 

@@ -70,3 +70,22 @@ export function bannerModel(state: SessionState, now: number, t: T): BannerModel
   }
   return { text: t('share.banner.checking'), actions: [], fullscreen: false, tone: 'info' };
 }
+
+export interface ChipModel {
+  text: string;
+  /** 관리키가 있어 「공유 관리」를 열 수 있다 */
+  manageable: boolean;
+}
+
+/** 상태줄 칩 — `공유 중 · v4 · 편집 가능 · ~12/31` */
+export function chipModel(state: SessionState, t: T): ChipModel | null {
+  if (state.kind !== 'open' && state.kind !== 'conflict') return null;
+  const meta = state.meta;
+  const version = state.kind === 'open' ? Math.max(state.baseVersion, meta.version) : meta.version;
+  let access = t(meta.access === 'edit' ? 'share.chip.edit' : 'share.chip.view');
+  if (meta.expiresAt != null) {
+    const d = new Date(meta.expiresAt);
+    access += ` ${t('share.chip.until', { p1: `${d.getMonth() + 1}/${d.getDate()}` })}`;
+  }
+  return { text: t('share.chip.text', { p1: version, p2: access }), manageable: !!state.adminKey };
+}

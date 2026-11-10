@@ -48,6 +48,9 @@ export const EMBED_HIDDEN_FILE_COMMAND_IDS: readonly string[] = [
  * 같은 급의 문서 교체 진입점이다 — 호스트는 문서 A를 열었다고 알고 있는데 Studio
  * 내부 문서가 B로 바뀔 수 있다.
  */
+/** embed 프로파일은 링크 공유도 숨긴다 — 문서 수명주기는 호스트가 통제한다(명령 등록 자체를 건너뜀) */
+export const EMBED_HIDDEN_SHARE_COMMAND_IDS: readonly string[] = ['file:share-link', 'file:share-manage'];
+
 export const EMBED_HIDDEN_EDIT_COMMAND_IDS: readonly string[] = [
   'edit:compare-documents',
 ];
